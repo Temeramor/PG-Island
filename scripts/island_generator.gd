@@ -23,7 +23,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _create_world() -> void:
 	var environment := WorldEnvironment.new()
 	var world := Environment.new()
-	world.background_mode = Environment.BG_SKY
+	world.background_mode = Environment.BG_COLOR
+	world.background_color = Color(0.055, 0.22, 0.31)
 	world.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	world.ambient_light_color = Color(0.72, 0.82, 0.91)
 	world.ambient_light_energy = 0.8
