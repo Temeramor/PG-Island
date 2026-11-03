@@ -3,6 +3,10 @@ extends Node3D
 const GRID_SIZE := 512
 const TARGET_AREA_M2 := 4_000_000.0
 const WATER_SIZE := 20_000.0
+const CAMERA_SIZE_PER_HEIGHT := 1.28 / 1.8
+const CAMERA_MIN_HEIGHT := 500.0
+const CAMERA_MAX_HEIGHT := 12_000.0
+const CAMERA_MOVE_FACTOR := 0.65
 
 var island_mesh_instance: MeshInstance3D
 var camera: Camera3D
@@ -14,6 +18,35 @@ func _ready() -> void:
 	_create_camera()
 	_create_hud()
 	generate_island()
+
+func _process(delta: float) -> void:
+	if camera == null:
+		return
+	var move := Vector3.ZERO
+	if Input.is_key_pressed(KEY_W):
+		move.z -= 1.0
+	if Input.is_key_pressed(KEY_S):
+		move.z += 1.0
+	if Input.is_key_pressed(KEY_A):
+		move.x -= 1.0
+	if Input.is_key_pressed(KEY_D):
+		move.x += 1.0
+	if move.length_squared() > 0.0:
+		move = move.normalized()
+		var horizontal_speed := camera.size * CAMERA_MOVE_FACTOR
+		camera.position.x += move.x * horizontal_speed * delta
+		camera.position.z += move.z * horizontal_speed * delta
+
+	var vertical := 0.0
+	if Input.is_key_pressed(KEY_SPACE):
+		vertical += 1.0
+	if Input.is_key_pressed(KEY_SHIFT):
+		vertical -= 1.0
+	if vertical != 0.0:
+		var vertical_speed := camera.position.y * CAMERA_MOVE_FACTOR
+		camera.position.y = clampf(camera.position.y + vertical * vertical_speed * delta, CAMERA_MIN_HEIGHT, CAMERA_MAX_HEIGHT)
+		# Orthographic projection: changing altitude also changes map scale.
+		camera.size = camera.position.y * CAMERA_SIZE_PER_HEIGHT
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
@@ -93,7 +126,7 @@ func _create_hud() -> void:
 	column.add_child(info_label)
 
 	var hint := Label.new()
-	hint.text = "R  —  regenerate island"
+	hint.text = "WASD  —  move    SPACE / SHIFT  —  altitude    R  —  regenerate"
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(0.9, 0.72, 0.43))
 	column.add_child(hint)
