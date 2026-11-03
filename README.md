@@ -4,7 +4,7 @@ Godot 4.7.2 project. The first milestone is a top-down cartographic overview of 
 
 ## Run
 
-Open this folder in Godot 4.7.2 and run the project (F6/F5). Use **W/A/S/D** to move the aerial camera, **Space** to rise/zoom out, **Shift** to descend/zoom in, and **R** to generate another island.
+Open this folder in Godot 4.7.2 and run the project (F6/F5). Use **W/A/S/D** to move the camera, hold **right mouse button and drag** to orbit around the island, **Space** to rise/zoom out, **Shift** to descend/zoom in, and **R** to generate another island.
 
 ## Current scope
 
@@ -13,7 +13,7 @@ Open this folder in Godot 4.7.2 and run the project (F6/F5). Use **W/A/S/D** to 
 - Procedural coastline from a warped signed scalar field, fractal noise, and randomized coastal inlets.
 - The land mask is selected before the mesh is built.
 - Horizontal land area is normalized to 4,000,000 m² (4 km²) using the occupied mask-cell count.
-- Orthographic aerial camera with keyboard navigation and altitude-linked zoom, plus a restrained survey-style overlay.
+- Orthographic camera with keyboard navigation, right-mouse orbit, altitude-linked zoom, and a restrained survey-style overlay.
 
 ## Generation notes
 
