@@ -7,9 +7,14 @@ const CAMERA_SIZE_PER_HEIGHT := 1.28 / 1.8
 const CAMERA_MIN_HEIGHT := 500.0
 const CAMERA_MAX_HEIGHT := 12_000.0
 const CAMERA_MOVE_FACTOR := 0.65
+const MOUSE_LOOK_SENSITIVITY := 0.004
+const CAMERA_MIN_PITCH := -1.48
+const CAMERA_MAX_PITCH := -0.12
 
 var island_mesh_instance: MeshInstance3D
 var camera: Camera3D
+var camera_pivot: Node3D
+var rotating_camera := false
 var info_label: Label
 var generation_number := 0
 
@@ -34,8 +39,8 @@ func _process(delta: float) -> void:
 	if move.length_squared() > 0.0:
 		move = move.normalized()
 		var horizontal_speed := camera.size * CAMERA_MOVE_FACTOR
-		camera.position.x += move.x * horizontal_speed * delta
-		camera.position.z += move.z * horizontal_speed * delta
+		camera_pivot.position.x += move.x * horizontal_speed * delta
+		camera_pivot.position.z += move.z * horizontal_speed * delta
 
 	var vertical := 0.0
 	if Input.is_key_pressed(KEY_SPACE):
@@ -43,10 +48,20 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_SHIFT):
 		vertical -= 1.0
 	if vertical != 0.0:
-		var vertical_speed := camera.position.y * CAMERA_MOVE_FACTOR
-		camera.position.y = clampf(camera.position.y + vertical * vertical_speed * delta, CAMERA_MIN_HEIGHT, CAMERA_MAX_HEIGHT)
+		var vertical_speed := camera.position.z * CAMERA_MOVE_FACTOR
+		camera.position.z = clampf(camera.position.z + vertical * vertical_speed * delta, CAMERA_MIN_HEIGHT, CAMERA_MAX_HEIGHT)
 		# Orthographic projection: changing altitude also changes map scale.
-		camera.size = camera.position.y * CAMERA_SIZE_PER_HEIGHT
+		camera.size = camera.position.z * CAMERA_SIZE_PER_HEIGHT
+		camera.far = camera.position.z + 5000.0
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		rotating_camera = event.pressed
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and rotating_camera:
+		camera_pivot.rotation.y -= event.relative.x * MOUSE_LOOK_SENSITIVITY
+		camera_pivot.rotation.x = clampf(camera_pivot.rotation.x - event.relative.y * MOUSE_LOOK_SENSITIVITY, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH)
+		get_viewport().set_input_as_handled()
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
@@ -86,12 +101,17 @@ func _create_world() -> void:
 	add_child(sun)
 
 func _create_camera() -> void:
+	camera_pivot = Node3D.new()
+	camera_pivot.name = "CameraPivot"
+	camera_pivot.rotation.x = -PI * 0.5
+	add_child(camera_pivot)
+
 	camera = Camera3D.new()
+	camera.name = "SurveyCamera"
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.position = Vector3(0.0, 6000.0, 0.0)
-	camera.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	camera.position = Vector3(0.0, 0.0, 6000.0)
 	camera.current = true
-	add_child(camera)
+	camera_pivot.add_child(camera)
 
 func _create_hud() -> void:
 	var layer := CanvasLayer.new()
@@ -126,7 +146,7 @@ func _create_hud() -> void:
 	column.add_child(info_label)
 
 	var hint := Label.new()
-	hint.text = "WASD  —  move    SPACE / SHIFT  —  altitude    R  —  regenerate"
+	hint.text = "WASD — move    RMB + drag — orbit    SPACE / SHIFT — altitude    R — regenerate"
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(0.9, 0.72, 0.43))
 	column.add_child(hint)
@@ -238,8 +258,10 @@ func generate_island() -> void:
 
 	var extent := float(GRID_SIZE) * cell_size
 	camera.size = extent * 1.28
-	camera.position = Vector3(0.0, maxf(extent * 1.8, 2500.0), 0.0)
-	camera.far = camera.position.y + 5000.0
+	camera_pivot.position = Vector3.ZERO
+	camera_pivot.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+	camera.position = Vector3(0.0, 0.0, maxf(extent * 1.8, 2500.0))
+	camera.far = camera.position.z + 5000.0
 
 	info_label.text = "LAND AREA  4.00 km²    /    GRID  %d²    /    STUDY  %03d" % [GRID_SIZE, generation_number]
 
