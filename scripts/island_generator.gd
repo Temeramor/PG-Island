@@ -49,6 +49,7 @@ func _create_world() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55.0, -25.0, 0.0)
 	sun.light_energy = 1.15
+	sun.shadow_enabled = true
 	add_child(sun)
 
 func _create_camera() -> void:
