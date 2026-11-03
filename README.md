@@ -8,7 +8,8 @@ Open this folder in Godot 4.7.2 and run the project (F6/F5). Press **R** to gene
 
 ## Current scope
 
-- Flat landmass only: no elevation, terrain, mountains, or textures yet.
+- Procedural elevation with broad geological masses, rolling hills, warped mountain ridges, valleys, and fine slope detail.
+- Height-band vertex colors: lowland greens, upland ochres, exposed rock, and pale high peaks.
 - Procedural coastline from a warped signed scalar field, fractal noise, and randomized coastal inlets.
 - The land mask is selected before the mesh is built.
 - Horizontal land area is normalized to 4,000,000 m² (4 km²) using the occupied mask-cell count.
@@ -16,7 +17,7 @@ Open this folder in Godot 4.7.2 and run the project (F6/F5). Press **R** to gene
 
 ## Generation notes
 
-The implementation follows the mask-first approach described by Red Blob Games: construct a scalar field and threshold it into a land mask before any later elevation stage. Noise contributes coastal irregularity; randomized negative fields create bays and inlets, including strongly concave silhouettes. The current mesh is deliberately flat.
+The implementation follows the mask-first approach described by Red Blob Games: construct a scalar field and threshold it into a land mask before any later elevation stage. Noise contributes coastal irregularity; randomized negative fields create bays and inlets, including strongly concave silhouettes. The terrain stage combines separate fBm fields for macro uplift, hills, ridged mountain structures, and fine detail. Domain warping is applied to the broad and medium coordinates; the fine layer remains comparatively stable. A softly bounded, randomly rotated mountain province gives the ridged noise a coherent mountain-chain region. Vertex colors visualize elevation bands, and shared grid-corner heights keep neighboring cell geometry continuous.
 
 References:
 - https://www.redblobgames.com/maps/terrain-from-noise/
