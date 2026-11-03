@@ -5,9 +5,8 @@ shader_type spatial;
 group_uniforms Shape;
 uniform float seed = 7.0;
 uniform float island_radius = 1580.0;
-uniform float coast_warp : hint_range(0.0, 2.0) = 1.15;
-uniform float coast_detail : hint_range(0.0, 0.12) = 0.035;
-uniform float shore_s : hint_range(0.25, 0.7) = 0.46;
+uniform float coast_warp : hint_range(0.0, 2.0) = 1.0;
+uniform float coast_detail : hint_range(0.0, 0.12) = 0.018;
 uniform float mountain_chance : hint_range(0.0, 1.0) = 0.58;
 uniform float mountain_strength : hint_range(0.0, 1.5) = 1.0;
 
@@ -109,7 +108,7 @@ float coast_distance(vec2 q, vec2 so) {
 		noised(q * 3.4 + so + 9.7).x,
 		noised(q * 3.4 + so + vec2(2.9, 6.1)).x
 	);
-	vec2 warped = q + coast_warp * (0.19 * w1 + 0.065 * w2);
+	vec2 warped = q + coast_warp * (0.08 * w1 + 0.025 * w2);
 	float radial = length(warped);
 	float edge_noise = noised(q * 8.5 + so + 21.0).x * coast_detail;
 	return radial + edge_noise;
@@ -119,9 +118,9 @@ float height_at(vec2 xz) {
 	vec2 so = vec2(seed * 17.13, seed * 29.71);
 	vec2 q = xz / island_radius;
 	float edge = coast_distance(q, so);
-	float mask = 1.0 - smoothstep(0.665, 0.735, edge);
-	float land_t = clamp((0.735 - edge) / 0.07, 0.0, 1.0);
-	float sea_t = clamp((edge - 0.665) / 0.07, 0.0, 1.0);
+	float mask = 1.0 - smoothstep(0.698, 0.702, edge);
+	float land_t = clamp((0.70 - edge) / 0.30, 0.0, 1.0);
+	float sea_t = clamp((edge - 0.70) / 0.30, 0.0, 1.0);
 
 	if (mask > 0.5) {
 		// Broad coastal shelf rises gently into interior terraces and low uplands.
