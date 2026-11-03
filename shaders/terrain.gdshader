@@ -1,48 +1,36 @@
-// Procedural island terrain: the whole heightfield is evaluated in the vertex shader.
-//
-// Techniques and where they come from:
-//  * Island mask via falloff curve        - Sebastian Lague, "Procedural Landmass Generation" E11 (falloff map)
-//  * Irregular coastline via domain warp  - Inigo Quilez, "Domain Warping" (iquilezles.org/articles/warp)
-//  * Hills: fBm with analytic derivatives, amplitude damped by 1/(1+|slope|^2)
-//                                         - Inigo Quilez, "Advanced Perlin noise / morenoise" (erosion-like look)
-//  * Mountains: ridged multifractal       - Musgrave ridge noise, as in The Book of Shaders ch.13 (abs + invert + square)
-//  * Island profile (beach, shelf, drop-off) - Red Blob Games "terrain from noise" idea: separate shape from relief
-//  * Hash without sine                    - Dave Hoskins (shadertoy 4djSRW)
-//  * Vertex displacement + normal rebuild - Godot docs, "Your first 3D shader"
+// Procedural island terrain: warped island geometry, layered relief and geology-aware materials.
+// Height is clamped to 0..200 m on land. Mountain ranges are independently optional per seed.
 shader_type spatial;
 
 group_uniforms Shape;
 uniform float seed = 7.0;
-uniform float island_radius = 400.0;
-uniform float falloff_a : hint_range(1.0, 6.0) = 3.0;     // Lague falloff steepness
-uniform float falloff_b : hint_range(0.5, 5.0) = 2.2;     // Lague falloff offset
-uniform float coast_warp : hint_range(0.0, 2.0) = 1.0;    // domain warp strength of the outline
-uniform float coast_detail : hint_range(0.0, 0.1) = 0.025; // small bays and rocks on the shoreline
-uniform float shore_s : hint_range(0.2, 0.7) = 0.46;      // mask value where land meets the sea
+uniform float island_radius = 1580.0;
+uniform float coast_warp : hint_range(0.0, 2.0) = 1.15;
+uniform float coast_detail : hint_range(0.0, 0.12) = 0.035;
+uniform float shore_s : hint_range(0.25, 0.7) = 0.46;
+uniform float mountain_chance : hint_range(0.0, 1.0) = 0.58;
+uniform float mountain_strength : hint_range(0.0, 1.5) = 1.0;
 
 group_uniforms Relief;
-uniform float max_height = 130.0;
-uniform float sea_floor_depth = 55.0;
-uniform float shelf_depth = 9.0;                          // depth of the shallow shelf around the island
-uniform float hill_freq = 3.0;
-uniform float mountain_freq = 2.2;
-uniform float hill_amp : hint_range(0.0, 0.4) = 0.12;
-uniform float mountain_amp : hint_range(0.0, 1.0) = 0.65;
-uniform float erosion_damping : hint_range(0.0, 4.0) = 1.2;
-uniform float sea_noise_amp = 3.0;
-uniform float normal_eps = 1.2;
+uniform float max_height = 200.0;
+uniform float sea_floor_depth = 82.0;
+uniform float shelf_depth = 12.0;
+uniform float normal_eps = 2.0;
+uniform float hill_strength : hint_range(0.0, 2.0) = 1.0;
+uniform float erosion_damping : hint_range(0.0, 4.0) = 1.35;
 
 group_uniforms Colors;
-uniform vec3 sand_color : source_color = vec3(0.80, 0.72, 0.52);
-uniform vec3 sand_dark : source_color = vec3(0.62, 0.55, 0.40);
-uniform vec3 seabed_deep : source_color = vec3(0.30, 0.34, 0.33);
-uniform vec3 grass_a : source_color = vec3(0.24, 0.40, 0.14);
-uniform vec3 grass_b : source_color = vec3(0.38, 0.48, 0.18);
-uniform vec3 rock_a : source_color = vec3(0.37, 0.34, 0.31);
-uniform vec3 rock_b : source_color = vec3(0.52, 0.47, 0.41);
-uniform float snow_line = 88.0;
-uniform float rock_slope_min = 0.12;
-uniform float rock_slope_max = 0.30;
+uniform vec3 wet_sand : source_color = vec3(0.48, 0.43, 0.34);
+uniform vec3 dry_sand : source_color = vec3(0.78, 0.69, 0.51);
+uniform vec3 pale_sand : source_color = vec3(0.88, 0.81, 0.66);
+uniform vec3 grass_low : source_color = vec3(0.22, 0.34, 0.16);
+uniform vec3 grass_high : source_color = vec3(0.37, 0.43, 0.22);
+uniform vec3 scrub_color : source_color = vec3(0.34, 0.37, 0.20);
+uniform vec3 rock_dark : source_color = vec3(0.27, 0.28, 0.27);
+uniform vec3 rock_light : source_color = vec3(0.48, 0.45, 0.39);
+uniform vec3 seabed_shallow : source_color = vec3(0.34, 0.37, 0.32);
+uniform vec3 seabed_deep : source_color = vec3(0.12, 0.19, 0.20);
+uniform float cliff_slope : hint_range(0.05, 0.6) = 0.22;
 group_uniforms;
 
 varying vec3 v_world;
@@ -50,16 +38,13 @@ varying vec3 v_wnormal;
 
 const mat2 ROT = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
 
-// ---------------------------------------------------------------- noise
-
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
 	return fract((p3.x + p3.y) * p3.z);
 }
 
-// Value noise with quintic interpolation and analytic derivatives.
-// Returns (value in [-1,1], d/dx, d/dy).
+// Quintic value noise with analytic derivatives.
 vec3 noised(vec2 x) {
 	vec2 i = floor(x);
 	vec2 f = fract(x);
@@ -77,85 +62,104 @@ vec3 noised(vec2 x) {
 	return vec3(v * 2.0 - 1.0, 2.0 * dv);
 }
 
-// fBm where every octave is damped by the accumulated slope (iq "morenoise" idea):
-// steep areas lose small detail, flat areas keep it -> smooth valleys, sharper flanks.
+// Slope-aware fBm: fine-scale noise is attenuated on steep terrain.
 float terrain_fbm(vec2 p, int octaves) {
-	float a = 0.0;
-	float b = 1.0;
+	float sum = 0.0;
+	float amp = 1.0;
 	float norm = 0.0;
-	vec2 d = vec2(0.0);
-	mat2 J = mat2(vec2(1.0, 0.0), vec2(0.0, 1.0));
-	for (int i = 0; i < 10; i++) {
+	vec2 deriv = vec2(0.0);
+	mat2 jac = mat2(vec2(1.0, 0.0), vec2(0.0, 1.0));
+	for (int i = 0; i < 8; i++) {
 		if (i >= octaves) {
 			break;
 		}
-		vec3 n = noised(J * p);
-		vec2 g = n.yz * J; // gradient with respect to the original p
-		d += b * g;
-		a += b * n.x / (1.0 + erosion_damping * dot(d, d));
-		norm += b;
-		J = ROT * J * 2.0;
-		b *= 0.5;
+		vec3 n = noised(jac * p);
+		vec2 grad = n.yz * jac;
+		deriv += amp * grad;
+		float damp = 1.0 / (1.0 + erosion_damping * dot(deriv, deriv));
+		sum += amp * n.x * damp;
+		norm += amp;
+		jac = ROT * jac * 2.0;
+		amp *= 0.5;
 	}
-	return a / norm;
+	return sum / max(norm, 0.0001);
 }
 
-// Ridged multifractal: sharp crests, each octave weighted by the previous one.
 float ridged(vec2 p) {
-	float a = 0.0;
-	float b = 0.5;
-	float w = 1.0;
+	float sum = 0.0;
+	float amp = 0.58;
+	float weight = 1.0;
 	for (int i = 0; i < 6; i++) {
 		float n = 1.0 - abs(noised(p).x);
-		n *= n;
-		a += b * n * w;
-		w = clamp(n * 2.0, 0.0, 1.0);
-		p = ROT * p * 2.0 + vec2(1.7, 9.2);
-		b *= 0.5;
+		n = n * n;
+		sum += amp * n * weight;
+		weight = clamp(n * 2.1, 0.0, 1.0);
+		p = ROT * p * 2.03 + vec2(1.7, 9.2);
+		amp *= 0.49;
 	}
-	return a / 0.97;
+	return sum / 0.94;
 }
 
-// ---------------------------------------------------------------- island
+float island_mask(vec2 q, vec2 so) {
+	vec2 w1 = vec2(
+		noised(q * 1.35 + so).x,
+		noised(q * 1.35 + so + vec2(5.2, 1.3)).x
+	);
+	vec2 w2 = vec2(
+		noised(q * 3.4 + so + 9.7).x,
+		noised(q * 3.4 + so + vec2(2.9, 6.1)).x
+	);
+	vec2 warped = q + coast_warp * (0.19 * w1 + 0.065 * w2);
+	float radial = length(warped);
+	float edge_noise = noised(q * 8.5 + so + 21.0).x * coast_detail;
+	float d = radial + edge_noise;
+	// Smooth, broad island silhouette; noise only perturbs the shoreline, not the whole landmass.
+	return 1.0 - smoothstep(0.665, 0.735, d);
+}
 
 float height_at(vec2 xz) {
 	vec2 so = vec2(seed * 17.13, seed * 29.71);
 	vec2 q = xz / island_radius;
+	float mask = island_mask(q, so);
+	float shore_noise = noised(q * 8.5 + so + 21.0).x * coast_detail;
+	float radial = length(q + coast_warp * 0.19 * vec2(
+		noised(q * 1.35 + so).x,
+		noised(q * 1.35 + so + vec2(5.2, 1.3)).x
+	));
+	float edge = radial + shore_noise;
+	float land_t = clamp((0.735 - edge) / 0.07, 0.0, 1.0);
+	float sea_t = clamp((edge - 0.665) / 0.07, 0.0, 1.0);
 
-	// Outline: domain-warped distance from the center (iq warp).
-	vec2 w1 = vec2(noised(q * 1.3 + so).x, noised(q * 1.3 + so + vec2(5.2, 1.3)).x);
-	vec2 w2 = vec2(noised(q * 3.1 + so + 9.7).x, noised(q * 3.1 + so + vec2(2.9, 6.1)).x);
-	vec2 wq = q + coast_warp * (0.22 * w1 + 0.07 * w2);
-	float x = clamp(length(wq), 0.0, 1.0);
-
-	// Lague falloff curve: f(x) = x^a / (x^a + (b - b*x)^a)
-	float xa = pow(x, falloff_a);
-	float f = xa / (xa + pow(max(falloff_b - falloff_b * x, 0.0), falloff_a));
-	float s = 1.0 - f;                                  // 1 in the center, 0 at the edge
-	s += coast_detail * noised(q * 9.0 + so + 21.0).x;  // rugged coastline
-
-	float land_t = clamp((s - shore_s) / (1.0 - shore_s), 0.0, 1.0);
-	float sea_u = clamp((shore_s - s) / shore_s, 0.0, 1.0);
-
-	float result = 0.0;
-	if (s >= shore_s) {
-		// ---- land
-		float base = pow(land_t, 1.3) * 0.30 * max_height;
-		float lw = smoothstep(0.0, 0.25, land_t);       // no relief right at the waterline
-
-		float hills = terrain_fbm(q * hill_freq + so + 3.0, 8);
-		float m_mask = smoothstep(0.35, 0.85, land_t + 0.25 * noised(q * 2.0 + so + 3.3).x);
-		float peaks = ridged(q * mountain_freq + so + 17.0);
-
-		result = base + lw * (hills * hill_amp * max_height + m_mask * peaks * mountain_amp * max_height);
-	} else {
-		// ---- sea floor: gentle shelf, then a steeper drop-off
-		float prof = shelf_depth * sea_u + (sea_floor_depth - shelf_depth) * smoothstep(0.30, 1.0, sea_u);
-		float sw = smoothstep(0.0, 0.2, sea_u);
-		float n = terrain_fbm(q * 6.0 + so + 31.0, 4);
-		result = -prof + sw * n * sea_noise_amp;
+	if (mask > 0.5) {
+		// Broad coastal shelf rises gently into interior terraces and low uplands.
+		float interior = smoothstep(0.0, 0.78, land_t);
+		float plateau = 8.0 + 27.0 * pow(interior, 1.35);
+		float hills_a = terrain_fbm(q * vec2(5.1, 4.2) + so + 3.0, 7);
+		float hills_b = terrain_fbm(q * vec2(12.0, 10.0) + so + 41.0, 5);
+		float rolling = (hills_a * 15.0 + hills_b * 3.8) * hill_strength;
+		// A separate per-island switch makes some seeds genuinely low-relief islands.
+		float has_mountains = step(hash12(vec2(seed * 0.731 + 19.1, seed * 1.917 + 7.3)), mountain_chance);
+		// Long, broken mountain spine with noisy foothills rather than isolated conical peaks.
+		vec2 ridge_p = vec2(q.x * 2.15 + q.y * 0.38, q.y * 5.8) + so * 0.07;
+		float ridge_field = ridged(ridge_p * 2.0 + vec2(11.0, 3.0));
+		float ridge_zone_noise = terrain_fbm(q * vec2(3.0, 6.5) + so + 67.0, 5);
+		float spine = smoothstep(0.22, 0.58, ridge_field + ridge_zone_noise * 0.19);
+		float mountain_zone = smoothstep(0.16, 0.40, interior) * (1.0 - smoothstep(0.76, 0.96, interior));
+		float mountain_relief = spine * mountain_zone * (72.0 + 72.0 * ridge_field) * mountain_strength * has_mountains;
+		// Carved drainage-like valleys: broad warped negative channels interrupt the ridges.
+		float drainage = abs(terrain_fbm(q * vec2(8.0, 3.0) + so + 103.0, 5));
+		float valley_cut = smoothstep(0.0, 0.12, drainage) * mountain_relief * 0.16;
+		float h = plateau + rolling + mountain_relief - valley_cut;
+		// Beaches remain close to sea level; the cap is a hard physical limit, not an amplitude hint.
+		h *= smoothstep(0.015, 0.20, land_t);
+		return clamp(h, 0.0, max_height);
 	}
-	return result;
+
+	// Underwater shelf follows the same warped coast, then falls away into a deeper basin.
+	float shelf = shelf_depth * sea_t;
+	float basin = (sea_floor_depth - shelf_depth) * smoothstep(0.12, 0.92, sea_t);
+	float seabed_noise = terrain_fbm(q * 6.0 + so + 131.0, 4) * 2.8;
+	return -shelf - basin + seabed_noise * smoothstep(0.08, 0.55, sea_t);
 }
 
 void vertex() {
@@ -164,7 +168,6 @@ void vertex() {
 	float h = height_at(xz);
 	float hx = height_at(xz + vec2(e, 0.0));
 	float hz = height_at(xz + vec2(0.0, e));
-
 	VERTEX.y = h;
 	vec3 nrm = normalize(vec3((h - hx) / e, 1.0, (h - hz) / e));
 	NORMAL = nrm;
@@ -177,40 +180,32 @@ void fragment() {
 	float h = v_world.y;
 	float slope = 1.0 - n.y;
 	vec2 p = v_world.xz;
+	float broad = noised(p * 0.012 + seed).x;
+	float medium = noised(p * 0.075 + 17.0).x;
+	float fine = noised(p * 0.48 + 31.0).x;
 
-	float nz1 = noised(p * 0.06 + seed).x;   // large color patches
-	float nz2 = noised(p * 0.5).x;           // mid grain
-	float nz3 = noised(p * 3.0).x;           // fine grain
+	vec3 sand = mix(dry_sand, pale_sand, smoothstep(-0.2, 0.55, broad + medium * 0.18));
+	vec3 grass = mix(grass_low, grass_high, clamp(0.48 + broad * 0.30 + medium * 0.18, 0.0, 1.0));
+	vec3 rock = mix(rock_dark, rock_light, clamp(0.5 + medium * 0.32 + fine * 0.12, 0.0, 1.0));
+	vec3 seabed = mix(seabed_shallow, seabed_deep, smoothstep(-12.0, -78.0, h));
 
-	// sea floor / sand
-	vec3 sand = mix(sand_color, sand_dark, clamp(nz1 * 0.5 + 0.5, 0.0, 1.0) * 0.6);
-	sand *= 0.93 + 0.07 * nz3;
-	float depth_f = 1.0 - smoothstep(-35.0, 0.0, h);
-	vec3 ground = mix(sand, seabed_deep, depth_f);
+	float beach = (1.0 - smoothstep(2.0, 7.0, h)) * (1.0 - smoothstep(0.16, 0.34, slope));
+	float grass_w = smoothstep(3.0, 8.0, h);
+	float scrub_w = smoothstep(35.0, 75.0, h) * (1.0 - smoothstep(0.30, 0.55, slope));
+	float cliff_w = smoothstep(cliff_slope, cliff_slope + 0.17, slope);
+	float high_rock = smoothstep(105.0, 165.0, h) * (1.0 - smoothstep(0.42, 0.68, slope)) * 0.55;
 
-	// grass above the beach
-	vec3 grass = mix(grass_a, grass_b, clamp(nz1 * 0.5 + 0.5 + nz2 * 0.15, 0.0, 1.0));
-	float beach_top = 3.5 + nz1 * 1.5;
-	float grass_w = smoothstep(beach_top, beach_top + 3.0, h);
-	vec3 col = mix(ground, grass, grass_w);
-
-	// wet sand near the waterline
-	float wet = 1.0 - smoothstep(0.2, 1.3, h);
-	col *= 1.0 - 0.28 * wet * (1.0 - grass_w);
-
-	// rock on steep faces and at altitude
-	vec3 rock = mix(rock_a, rock_b, clamp(nz2 * 0.5 + 0.5, 0.0, 1.0));
-	rock *= 0.88 + 0.12 * sin(h * 0.9 + nz1 * 3.0);   // faint strata
-	float rock_w = smoothstep(rock_slope_min, rock_slope_max, slope + nz2 * 0.05);
-	rock_w = max(rock_w, smoothstep(snow_line * 0.75, snow_line * 1.1, h + nz1 * 10.0) * 0.6);
-	col = mix(col, rock, rock_w);
-
-	// snow on high, not-too-steep ground
-	float snow_w = smoothstep(snow_line, snow_line + 12.0, h + nz1 * 10.0 + nz2 * 3.0);
-	snow_w *= 1.0 - smoothstep(0.18, 0.42, slope);
-	col = mix(col, vec3(0.93, 0.95, 0.98), snow_w);
+	vec3 col = seabed;
+	col = mix(col, sand, smoothstep(-4.0, 0.5, h));
+	col = mix(col, grass, grass_w);
+	col = mix(col, scrub_color, scrub_w * 0.42);
+	col = mix(col, rock, max(cliff_w, high_rock));
+	// Darker damp strip at the waterline and fine mineral variation in the sand.
+	float wet = (1.0 - smoothstep(0.15, 1.5, h)) * (1.0 - cliff_w);
+	col = mix(col, wet_sand, wet * 0.72);
+	col *= 0.985 + fine * 0.025;
 
 	ALBEDO = col;
-	ROUGHNESS = mix(0.95, 0.6, snow_w);
-	SPECULAR = 0.2;
+	ROUGHNESS = mix(0.94, 0.78, cliff_w);
+	SPECULAR = 0.18;
 }
