@@ -19,7 +19,12 @@ Open this folder in Godot 4.7.2 and run the project (F6/F5). Press **R** to gene
 
 The implementation follows the mask-first approach described by Red Blob Games: construct a scalar field and threshold it into a land mask before any later elevation stage. Noise contributes coastal irregularity; randomized negative fields create bays and inlets, including strongly concave silhouettes. The terrain stage combines separate fBm fields for macro uplift, hills, ridged mountain structures, and fine detail. Domain warping is applied to the broad and medium coordinates; the fine layer remains comparatively stable. A softly bounded, randomly rotated mountain province gives the ridged noise a coherent mountain-chain region. Vertex colors visualize elevation bands, and shared grid-corner heights keep neighboring cell geometry continuous.
 
-References:
+Terrain references:
+- https://iquilezles.org/articles/warp/
+- https://iquilezles.org/articles/morenoise/
+- https://thebookofshaders.com/13/
+
+Coastline references:
 - https://www.redblobgames.com/maps/terrain-from-noise/
 - https://www.redblobgames.com/maps/terrain-from-noise/islands.html
 - https://github.com/SebLague/Procedural-Landmass-Generation
