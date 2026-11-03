@@ -122,7 +122,7 @@ func _height_at(nx: float, nz: float) -> float:
 	var interior := clampf(world_distance / 950.0, 0.0, 1.0)
 	if signed_distance >= 0.0:
 		var massif := pow(interior, 0.78) * peak_height
-		var mountain_belt := smoothstep(0.12, 0.78, interior) * smoothstep(0.95, 0.48, radial)
+		var mountain_belt := smoothstep(0.12, 0.78, interior) * (1.0 - smoothstep(0.48, 0.95, radial))
 		var ridged_peaks := pow(maxf(ridge, 0.0), 2.3) * peak_height * 0.30 * mountain_belt
 		var rolling := broad * 72.0 + detail * 13.0
 		var foothills := sin(nx * 13.0 + broad * 3.0) * sin(nz * 11.0) * 12.0 * interior
