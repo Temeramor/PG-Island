@@ -100,7 +100,7 @@ float ridged(vec2 p) {
 	return sum / 0.94;
 }
 
-float island_mask(vec2 q, vec2 so) {
+float coast_distance(vec2 q, vec2 so) {
 	vec2 w1 = vec2(
 		noised(q * 1.35 + so).x,
 		noised(q * 1.35 + so + vec2(5.2, 1.3)).x
@@ -112,21 +112,14 @@ float island_mask(vec2 q, vec2 so) {
 	vec2 warped = q + coast_warp * (0.19 * w1 + 0.065 * w2);
 	float radial = length(warped);
 	float edge_noise = noised(q * 8.5 + so + 21.0).x * coast_detail;
-	float d = radial + edge_noise;
-	// Smooth, broad island silhouette; noise only perturbs the shoreline, not the whole landmass.
-	return 1.0 - smoothstep(0.665, 0.735, d);
+	return radial + edge_noise;
 }
 
 float height_at(vec2 xz) {
 	vec2 so = vec2(seed * 17.13, seed * 29.71);
 	vec2 q = xz / island_radius;
-	float mask = island_mask(q, so);
-	float shore_noise = noised(q * 8.5 + so + 21.0).x * coast_detail;
-	float radial = length(q + coast_warp * 0.19 * vec2(
-		noised(q * 1.35 + so).x,
-		noised(q * 1.35 + so + vec2(5.2, 1.3)).x
-	));
-	float edge = radial + shore_noise;
+	float edge = coast_distance(q, so);
+	float mask = 1.0 - smoothstep(0.665, 0.735, edge);
 	float land_t = clamp((0.735 - edge) / 0.07, 0.0, 1.0);
 	float sea_t = clamp((edge - 0.665) / 0.07, 0.0, 1.0);
 
@@ -187,9 +180,8 @@ void fragment() {
 	vec3 sand = mix(dry_sand, pale_sand, smoothstep(-0.2, 0.55, broad + medium * 0.18));
 	vec3 grass = mix(grass_low, grass_high, clamp(0.48 + broad * 0.30 + medium * 0.18, 0.0, 1.0));
 	vec3 rock = mix(rock_dark, rock_light, clamp(0.5 + medium * 0.32 + fine * 0.12, 0.0, 1.0));
-	vec3 seabed = mix(seabed_shallow, seabed_deep, smoothstep(-12.0, -78.0, h));
+	vec3 seabed = mix(seabed_shallow, seabed_deep, 1.0 - smoothstep(-78.0, -12.0, h));
 
-	float beach = (1.0 - smoothstep(2.0, 7.0, h)) * (1.0 - smoothstep(0.16, 0.34, slope));
 	float grass_w = smoothstep(3.0, 8.0, h);
 	float scrub_w = smoothstep(35.0, 75.0, h) * (1.0 - smoothstep(0.30, 0.55, slope));
 	float cliff_w = smoothstep(cliff_slope, cliff_slope + 0.17, slope);
