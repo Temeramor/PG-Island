@@ -1,31 +1,40 @@
-# PG Island — procedural island plan
+# Procedural Island (Godot 4.3+)
 
-Godot 4.7.2 project. The first milestone is a top-down cartographic overview of a procedurally generated island.
+Остров целиком генерируется кодом и шейдерами. Нет моделей, текстур и внешних аддонов: одна плоская сетка (PlaneMesh) выгибается в вершинном шейдере по формуле высоты, цвет считается во фрагментном шейдере.
 
-## Run
+## Запуск
 
-Open this folder in Godot 4.7.2 and run the project (F6/F5). Use **W/A/S/D** to move the camera, hold **right mouse button and drag** to orbit around the island, **Space** to rise/zoom out, **Shift** to descend/zoom in, and **R** to generate another island.
+1. Godot 4.3 или новее (Forward+ или Mobile).
+2. Project Manager → Import → выбрать `project.godot` → Run (F5).
 
-## Current scope
+Управление: ПКМ + мышь = осмотр, WASD = движение, Q/E = вниз/вверх, Shift = быстрее, колесо = скорость, R = новый остров, Esc = отпустить мышь. Под водой включается синий туман.
 
-- Procedural elevation with broad geological masses, rolling hills, warped mountain ridges, valleys, and fine slope detail.
-- Height-band vertex colors: lowland greens, upland ochres, exposed rock, and pale high peaks.
-- Procedural coastline from a warped signed scalar field, fractal noise, and randomized coastal inlets.
-- The land mask is selected before the mesh is built.
-- Horizontal land area is normalized to 4,000,000 m² (4 km²) using the occupied mask-cell count.
-- Orthographic camera with keyboard navigation, right-mouse orbit, altitude-linked zoom, and a restrained survey-style overlay.
+## Что внутри
 
-## Generation notes
+- `main.gd` создаёт сцену: небо, солнце, сетку земли, сетку океана, камеру.
+- `shaders/terrain.gdshader` даёт форму острова, рельеф, дно и раскраску.
+- `shaders/water.gdshader` даёт волны, поглощение света глубиной, преломление и пену у берега.
 
-The implementation follows the mask-first approach described by Red Blob Games: construct a scalar field and threshold it into a land mask before any later elevation stage. Noise contributes coastal irregularity; randomized negative fields create bays and inlets, including strongly concave silhouettes. The terrain stage combines separate fBm fields for macro uplift, hills, ridged mountain structures, and fine detail. Domain warping is applied to the broad and medium coordinates; the fine layer remains comparatively stable. A softly bounded, randomly rotated mountain province gives the ridged noise a coherent mountain-chain region. Vertex colors visualize elevation bands, and shared grid-corner heights keep neighboring cell geometry continuous.
+Параметры (радиус, высота, крутизна склонов, цвета, линия снега и т.д.) видны в инспекторе у материала: `Terrain → Mesh → Material → Shader Parameters`. Через `@export` в `main.gd` меняются детализация сетки (`subdivisions`) и сид.
 
-Terrain references:
-- https://iquilezles.org/articles/warp/
-- https://iquilezles.org/articles/morenoise/
-- https://thebookofshaders.com/13/
+## Откуда взяты приёмы
 
-Coastline references:
-- https://www.redblobgames.com/maps/terrain-from-noise/
-- https://www.redblobgames.com/maps/terrain-from-noise/islands.html
-- https://github.com/SebLague/Procedural-Landmass-Generation
-- https://heman.readthedocs.io/en/latest/generate.html
+| Что | Источник |
+|---|---|
+| Маска острова (falloff-кривая `x^a / (x^a + (b - b·x)^a)`) | Sebastian Lague, Procedural Landmass Generation, E11 |
+| Неровный берег через domain warping | Inigo Quilez, https://iquilezles.org/articles/warp |
+| Холмы: fBm с аналитическими производными, затухание октав по крутизне (эффект эрозии) | Inigo Quilez, https://iquilezles.org/articles/morenoise |
+| Горы: ridged multifractal (abs, инверсия, квадрат) | The Book of Shaders, глава 13 |
+| Отдельно форма острова и отдельно рельеф | Red Blob Games, island shaping / terrain from noise |
+| Смещение вершин и пересчёт нормалей в шейдере | Документация Godot, "Your first 3D shader" |
+| Волны Герстнера | GPU Gems, глава 1 |
+| Структура воды, глубина, пена | godotshaders.com "Water shader 3D (Godot 4.3)", Chrisknyfe/boujie_water_shader (MIT) |
+| Хэш без синуса | Dave Hoskins, shadertoy 4djSRW |
+
+Формулы переписаны в собственную реализацию и не копируют чужие файлы целиком.
+
+## Дальше
+
+- Если сетка тяжёлая для видеокарты, уменьшите `subdivisions` (например, до 384).
+- Для ещё более реалистичных склонов: фильтр эрозии Rune Skovbo Johansen (https://blog.runevision.com/2026/03/fast-and-gorgeous-erosion-filter.html). Его центральная функция под лицензией CC BY-NC-SA, поэтому я её не встраивал.
+- Для настоящей симуляции эрозии: Sebastian Lague Hydraulic-Erosion или Mei et al. (compute shader), запекается в карту высот.
