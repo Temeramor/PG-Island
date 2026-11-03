@@ -1,40 +1,37 @@
-# Procedural Island (Godot 4.3+)
+# Procedural Island — Natural Terrain Generator
 
-Остров целиком генерируется кодом и шейдерами. Нет моделей, текстур и внешних аддонов: одна плоская сетка (PlaneMesh) выгибается в вершинном шейдере по формуле высоты, цвет считается во фрагментном шейдере.
+The island is generated entirely in code and shaders. No external models, textures or add-ons are required.
 
-## Запуск
+## Run
 
-1. Godot 4.3 или новее (Forward+ или Mobile).
-2. Project Manager → Import → выбрать `project.godot` → Run (F5).
+1. Open `project.godot` in Godot 4.3+ with the Forward+ renderer.
+2. Run the project (F5).
 
-Управление: ПКМ + мышь = осмотр, WASD = движение, Q/E = вниз/вверх, Shift = быстрее, колесо = скорость, R = новый остров, Esc = отпустить мышь. Под водой включается синий туман.
+Controls: RMB + mouse to look, WASD to move, Q/E down/up, Shift to move faster, mouse wheel to adjust speed, R to generate a new island, Esc to release the mouse. The camera starts above the island and can fly freely.
 
-## Что внутри
+## Terrain design
 
-- `main.gd` создаёт сцену: небо, солнце, сетку земли, сетку океана, камеру.
-- `shaders/terrain.gdshader` даёт форму острова, рельеф, дно и раскраску.
-- `shaders/water.gdshader` даёт волны, поглощение света глубиной, преломление и пену у берега.
+- **Island footprint:** a warped, irregular coastline inside a 3.6 km terrain field. The target land area is approximately 4 km²; the exact area varies slightly with the random shoreline seed.
+- **Relief:** broad lowlands and rolling hills are always present. Mountain ranges are independently enabled per seed, so some islands remain low and hilly while others develop a broken central spine.
+- **Elevation:** land height is hard-clamped to 0–200 m. There is no snow layer or snowline.
+- **Coast:** low-gradient beaches use sand tones; steep coastal faces and exposed slopes use layered rock. The underwater shelf follows the same warped coastline before descending into a deeper seabed.
+- **Materials:** large-scale color variation, mid-scale geology and fine grain are layered separately to avoid a single noisy texture.
 
-Параметры (радиус, высота, крутизна склонов, цвета, линия снега и т.д.) видны в инспекторе у материала: `Terrain → Mesh → Material → Shader Parameters`. Через `@export` в `main.gd` меняются детализация сетки (`subdivisions`) и сид.
+## Implementation notes
 
-## Откуда взяты приёмы
+The terrain shader separates the island silhouette from the elevation field. Domain-warped distance shapes the coastline; slope-aware fBm creates rolling terrain; ridged multifractal noise forms broken mountain crests; broad drainage cuts interrupt the ridges. The same heightfield drives both displacement and normal reconstruction.
 
-| Что | Источник |
-|---|---|
-| Маска острова (falloff-кривая `x^a / (x^a + (b - b·x)^a)`) | Sebastian Lague, Procedural Landmass Generation, E11 |
-| Неровный берег через domain warping | Inigo Quilez, https://iquilezles.org/articles/warp |
-| Холмы: fBm с аналитическими производными, затухание октав по крутизне (эффект эрозии) | Inigo Quilez, https://iquilezles.org/articles/morenoise |
-| Горы: ridged multifractal (abs, инверсия, квадрат) | The Book of Shaders, глава 13 |
-| Отдельно форма острова и отдельно рельеф | Red Blob Games, island shaping / terrain from noise |
-| Смещение вершин и пересчёт нормалей в шейдере | Документация Godot, "Your first 3D shader" |
-| Волны Герстнера | GPU Gems, глава 1 |
-| Структура воды, глубина, пена | godotshaders.com "Water shader 3D (Godot 4.3)", Chrisknyfe/boujie_water_shader (MIT) |
-| Хэш без синуса | Dave Hoskins, shadertoy 4djSRW |
+The generator is intentionally self-contained. It does not copy third-party shader files. The slope-aware fBm is inspired by Inigo Quilez's morenoise work; island falloff and shape/relief separation follow approaches discussed by Sebastian Lague and Red Blob Games.
 
-Формулы переписаны в собственную реализацию и не копируют чужие файлы целиком.
+## Performance
 
-## Дальше
+The terrain is a single 640 × 640 vertex grid evaluated in the vertex shader. If performance is limited, reduce `subdivisions` in `main.gd` (for example, to 480). The water mesh can be reduced independently with `water_subdivisions`.
 
-- Если сетка тяжёлая для видеокарты, уменьшите `subdivisions` (например, до 384).
-- Для ещё более реалистичных склонов: фильтр эрозии Rune Skovbo Johansen (https://blog.runevision.com/2026/03/fast-and-gorgeous-erosion-filter.html). Его центральная функция под лицензией CC BY-NC-SA, поэтому я её не встраивал.
-- Для настоящей симуляции эрозии: Sebastian Lague Hydraulic-Erosion или Mei et al. (compute shader), запекается в карту высот.
+## Important tuning values
+
+In `shaders/terrain.gdshader`:
+- `island_radius`, `coast_warp`, `coast_detail`: island footprint and shoreline irregularity.
+- `mountain_chance`: probability of a mountain range for a given seed.
+- `mountain_strength`: relief strength when a range is present.
+- `max_height`: hard land-height ceiling (default 200 m).
+- `hill_strength`: rolling relief independent of mountains.
