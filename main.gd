@@ -1,12 +1,12 @@
 extends Node3D
-## Builds the whole scene in code: sky, sun, shader terrain, shader ocean, free-fly camera.
+## Procedural island scene: generated terrain, ocean, sky and free-fly camera.
 ## Controls: RMB + mouse = look, WASD = move, Q/E = down/up, Shift = fast,
-## mouse wheel = speed, R = new random island, Esc = release mouse.
+## mouse wheel = speed, R = new island, Esc = release mouse.
 
-@export var terrain_size := 1100.0
-@export var subdivisions := 640          # vertices per side of the terrain grid
-@export var water_size := 3000.0
-@export var water_subdivisions := 750
+@export var terrain_size := 3600.0
+@export var subdivisions := 640
+@export var water_size := 8000.0
+@export var water_subdivisions := 640
 @export var seed_value := 7.0
 
 var terrain_mat: ShaderMaterial
@@ -17,10 +17,10 @@ var hud: Label
 
 var yaw := 0.0
 var pitch := -0.12
-var speed := 60.0
+var speed := 85.0
 
 const FOG_AIR := Color(0.66, 0.77, 0.88)
-const FOG_WATER := Color(0.04, 0.22, 0.32)
+const FOG_WATER := Color(0.025, 0.12, 0.19)
 
 
 func _ready() -> void:
@@ -33,10 +33,10 @@ func _ready() -> void:
 
 func _build_environment() -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.24, 0.45, 0.80)
-	sky_mat.sky_horizon_color = Color(0.66, 0.77, 0.88)
-	sky_mat.ground_horizon_color = Color(0.66, 0.77, 0.88)
-	sky_mat.ground_bottom_color = Color(0.20, 0.30, 0.40)
+	sky_mat.sky_top_color = Color(0.20, 0.39, 0.70)
+	sky_mat.sky_horizon_color = Color(0.72, 0.79, 0.83)
+	sky_mat.ground_horizon_color = Color(0.60, 0.68, 0.72)
+	sky_mat.ground_bottom_color = Color(0.13, 0.22, 0.29)
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 
@@ -46,9 +46,10 @@ func _build_environment() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 1.0
 	env.fog_enabled = true
 	env.fog_light_color = FOG_AIR
-	env.fog_density = 0.0006
+	env.fog_density = 0.00035
 	env.glow_enabled = true
 
 	var we := WorldEnvironment.new()
@@ -56,10 +57,10 @@ func _build_environment() -> void:
 	add_child(we)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-32.0, -35.0, 0.0)
-	sun.light_energy = 1.3
+	sun.rotation_degrees = Vector3(-38.0, -28.0, 0.0)
+	sun.light_energy = 1.25
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 1500.0
+	sun.directional_shadow_max_distance = 1800.0
 	add_child(sun)
 
 
@@ -77,8 +78,11 @@ func _build_terrain() -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = "Terrain"
 	mi.mesh = mesh
-	# the flat plane is displaced on the GPU, so tell the engine how tall it really is
-	mi.custom_aabb = AABB(Vector3(-terrain_size * 0.5, -120.0, -terrain_size * 0.5), Vector3(terrain_size, 320.0, terrain_size))
+	# The heightfield is displaced on the GPU; include the full 200 m relief and seabed.
+	mi.custom_aabb = AABB(
+		Vector3(-terrain_size * 0.5, -100.0, -terrain_size * 0.5),
+		Vector3(terrain_size, 310.0, terrain_size)
+	)
 	add_child(mi)
 
 
@@ -95,17 +99,20 @@ func _build_water() -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = "Ocean"
 	mi.mesh = mesh
-	mi.custom_aabb = AABB(Vector3(-water_size * 0.5, -5.0, -water_size * 0.5), Vector3(water_size, 10.0, water_size))
+	mi.custom_aabb = AABB(
+		Vector3(-water_size * 0.5, -5.0, -water_size * 0.5),
+		Vector3(water_size, 10.0, water_size)
+	)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
 
 func _build_camera() -> void:
 	cam = Camera3D.new()
-	cam.far = 6000.0
+	cam.far = 12000.0
 	cam.near = 0.3
-	cam.fov = 70.0
-	cam.position = Vector3(0.0, 80.0, 560.0)
+	cam.fov = 68.0
+	cam.position = Vector3(0.0, 150.0, 1700.0)
 	cam.rotation = Vector3(pitch, yaw, 0.0)
 	add_child(cam)
 	cam.make_current()
@@ -124,7 +131,7 @@ func _build_hud() -> void:
 
 
 func _update_hud() -> void:
-	hud.text = "RMB + mouse: look   WASD/QE: move   Shift: fast   Wheel: speed\nR: new island (seed %.1f)   Esc: release mouse" % seed_value
+	hud.text = "RMB + mouse: look   WASD/QE: move   Shift: fast   Wheel: speed\nR: new island (seed %.1f)   Mountains vary by seed   Esc: release mouse" % seed_value
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -132,7 +139,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if event.pressed else Input.MOUSE_MODE_VISIBLE
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			speed = minf(speed * 1.15, 1500.0)
+			speed = minf(speed * 1.15, 1800.0)
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			speed = maxf(speed / 1.15, 2.0)
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -167,7 +174,6 @@ func _process(delta: float) -> void:
 		var mult := 4.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0
 		cam.global_position += dir.normalized() * speed * mult * delta
 
-	# cheap underwater look: dense blue fog when the camera is below the surface
 	var under := cam.global_position.y < 0.0
 	env.fog_light_color = FOG_WATER if under else FOG_AIR
-	env.fog_density = 0.035 if under else 0.0006
+	env.fog_density = 0.035 if under else 0.00035
