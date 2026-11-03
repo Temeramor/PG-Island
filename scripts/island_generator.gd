@@ -1,6 +1,6 @@
 extends Node3D
 
-const GRID_SIZE := 256
+const GRID_SIZE := 512
 const TARGET_AREA_M2 := 4_000_000.0
 const WATER_SIZE := 20_000.0
 
