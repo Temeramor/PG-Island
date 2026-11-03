@@ -184,11 +184,20 @@ func generate_island() -> void:
 	# Each occupied grid cell has the same area; this scale makes their
 	# combined horizontal area exactly 4,000,000 square metres.
 	var cell_size := sqrt(TARGET_AREA_M2 / float(land_count))
-	var mesh := _build_flat_land_mesh(land, cell_size)
+	# Three independent noise bands: geological mass, mountain structure, and detail.
+	var macro_noise := _make_noise(rng.randi(), 0.0032, 4, 0.52)
+	var hill_noise := _make_noise(rng.randi(), 0.009, 4, 0.48)
+	var ridge_noise := _make_noise(rng.randi(), 0.015, 3, 0.5)
+	var detail_noise := _make_noise(rng.randi(), 0.045, 2, 0.45)
+	var warp_x := _make_noise(rng.randi(), 0.0045, 3, 0.5)
+	var warp_y := _make_noise(rng.randi(), 0.0045, 3, 0.5)
+	var mountain_angle := rng.randf_range(0.0, TAU)
+	var mountain_offset := Vector2(rng.randf_range(-250.0, 250.0), rng.randf_range(-250.0, 250.0))
+	var mesh := _build_terrain_mesh(land, cell_size, macro_noise, hill_noise, ridge_noise, detail_noise, warp_x, warp_y, mountain_angle, mountain_offset)
 	island_mesh_instance.mesh = mesh
 
 	var land_material := StandardMaterial3D.new()
-	land_material.albedo_color = Color(0.48, 0.57, 0.43)
+	land_material.vertex_color_use_as_albedo = true
 	land_material.roughness = 1.0
 	land_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	island_mesh_instance.material_override = land_material
@@ -200,11 +209,56 @@ func generate_island() -> void:
 
 	info_label.text = "LAND AREA  4.00 km²    /    GRID  %d²    /    STUDY  %03d" % [GRID_SIZE, generation_number]
 
-func _build_flat_land_mesh(land: PackedByteArray, cell_size: float) -> ArrayMesh:
+func _make_noise(seed_value: int, frequency_value: float, octaves: int, gain: float) -> FastNoiseLite:
+	var result := FastNoiseLite.new()
+	result.seed = seed_value
+	result.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	result.frequency = frequency_value
+	result.fractal_type = FastNoiseLite.FRACTAL_FBM
+	result.fractal_octaves = octaves
+	result.fractal_lacunarity = 2.0
+	result.fractal_gain = gain
+	return result
+
+func _height_at(p: Vector2, macro_noise: FastNoiseLite, hill_noise: FastNoiseLite, ridge_noise: FastNoiseLite, detail_noise: FastNoiseLite, warp_x: FastNoiseLite, warp_y: FastNoiseLite, mountain_angle: float, mountain_offset: Vector2) -> float:
+	# Warp broad and medium coordinates; keep fine detail stable.
+	var warp := Vector2(warp_x.get_noise_2d(p.x, p.y), warp_y.get_noise_2d(p.x + 173.0, p.y - 91.0)) * 105.0
+	var q := p + warp
+	var macro := macro_noise.get_noise_2d(q.x, q.y)
+	var hills := hill_noise.get_noise_2d(q.x * 1.15, q.y * 1.15)
+	var rotated := Vector2(q.x * cos(mountain_angle) - q.y * sin(mountain_angle), q.x * sin(mountain_angle) + q.y * cos(mountain_angle)) - mountain_offset
+	var mountain_envelope := exp(-pow(rotated.x / 520.0, 2.0) - pow(rotated.y / 260.0, 2.0))
+	var ridge_sample := ridge_noise.get_noise_2d(q.x * 0.72 + warp.x * 0.35, q.y * 0.72 + warp.y * 0.35)
+	var ridges := pow(1.0 - absf(ridge_sample), 2.4)
+	var elevation := 115.0 + macro * 135.0 + hills * 78.0
+	elevation += mountain_envelope * ridges * 720.0
+	elevation += detail_noise.get_noise_2d(p.x, p.y) * 13.0
+	return maxf(elevation, 8.0)
+
+func _height_color(height: float) -> Color:
+	if height < 90.0:
+		return Color(0.39, 0.52, 0.34).lerp(Color(0.48, 0.56, 0.36), clampf(height / 90.0, 0.0, 1.0))
+	if height < 300.0:
+		return Color(0.48, 0.56, 0.36).lerp(Color(0.53, 0.49, 0.34), (height - 90.0) / 210.0)
+	if height < 700.0:
+		return Color(0.53, 0.49, 0.34).lerp(Color(0.43, 0.43, 0.39), (height - 300.0) / 400.0)
+	return Color(0.43, 0.43, 0.39).lerp(Color(0.82, 0.84, 0.82), clampf((height - 700.0) / 250.0, 0.0, 1.0))
+
+func _corner_land_weight(land: PackedByteArray, x: int, y: int) -> float:
+	var count := 0
+	for oy in range(-1, 1):
+		for ox in range(-1, 1):
+			var cx := x + ox
+			var cy := y + oy
+			if cx >= 0 and cx < GRID_SIZE and cy >= 0 and cy < GRID_SIZE and land[cy * GRID_SIZE + cx] == 1:
+				count += 1
+	return float(count) / 4.0
+
+func _build_terrain_mesh(land: PackedByteArray, cell_size: float, macro_noise: FastNoiseLite, hill_noise: FastNoiseLite, ridge_noise: FastNoiseLite, detail_noise: FastNoiseLite, warp_x: FastNoiseLite, warp_y: FastNoiseLite, mountain_angle: float, mountain_offset: Vector2) -> ArrayMesh:
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var half_extent := float(GRID_SIZE) * cell_size * 0.5
-
+	var height_cache: Dictionary = {}
 	for y in range(GRID_SIZE):
 		for x in range(GRID_SIZE):
 			if land[y * GRID_SIZE + x] == 0:
@@ -213,22 +267,30 @@ func _build_flat_land_mesh(land: PackedByteArray, cell_size: float) -> ArrayMesh
 			var x1 := x0 + cell_size
 			var z0 := float(y) * cell_size - half_extent
 			var z1 := z0 + cell_size
-			var a := Vector3(x0, 0.0, z0)
-			var b := Vector3(x1, 0.0, z0)
-			var c := Vector3(x1, 0.0, z1)
-			var d := Vector3(x0, 0.0, z1)
-			surface.set_normal(Vector3.UP)
-			surface.add_vertex(a)
-			surface.set_normal(Vector3.UP)
-			surface.add_vertex(c)
-			surface.set_normal(Vector3.UP)
-			surface.add_vertex(b)
-			surface.set_normal(Vector3.UP)
-			surface.add_vertex(a)
-			surface.set_normal(Vector3.UP)
-			surface.add_vertex(d)
-			surface.set_normal(Vector3.UP)
-			surface.add_vertex(c)
-
-	var result := surface.commit()
-	return result
+			var corner_heights: Array[float] = []
+			var corner_colors: Array[Color] = []
+			var corners := [Vector2i(x, y), Vector2i(x + 1, y), Vector2i(x + 1, y + 1), Vector2i(x, y + 1)]
+			for corner in corners:
+				var key := Vector2i(corner.x, corner.y)
+				var h: float
+				if height_cache.has(key):
+					h = float(height_cache[key])
+				else:
+					var p := Vector2(float(corner.x) - GRID_SIZE * 0.5, float(corner.y) - GRID_SIZE * 0.5) * 18.0
+					h = _height_at(p, macro_noise, hill_noise, ridge_noise, detail_noise, warp_x, warp_y, mountain_angle, mountain_offset)
+					h *= _corner_land_weight(land, corner.x, corner.y)
+					height_cache[key] = h
+				corner_heights.append(h)
+				corner_colors.append(_height_color(h))
+			var a := Vector3(x0, corner_heights[0], z0)
+			var b := Vector3(x1, corner_heights[1], z0)
+			var c := Vector3(x1, corner_heights[2], z1)
+			var d := Vector3(x0, corner_heights[3], z1)
+			surface.set_color(corner_colors[0]); surface.add_vertex(a)
+			surface.set_color(corner_colors[2]); surface.add_vertex(c)
+			surface.set_color(corner_colors[1]); surface.add_vertex(b)
+			surface.set_color(corner_colors[0]); surface.add_vertex(a)
+			surface.set_color(corner_colors[3]); surface.add_vertex(d)
+			surface.set_color(corner_colors[2]); surface.add_vertex(c)
+	surface.generate_normals()
+	return surface.commit()
