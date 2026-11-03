@@ -11,7 +11,7 @@ uniform float mountain_chance : hint_range(0.0, 1.0) = 0.58;
 uniform float mountain_strength : hint_range(0.0, 1.5) = 1.0;
 
 group_uniforms Relief;
-uniform float max_height = 200.0;
+uniform float max_height : hint_range(0.0, 200.0) = 200.0;
 uniform float sea_floor_depth = 82.0;
 uniform float shelf_depth = 12.0;
 uniform float normal_eps = 2.0;
@@ -126,25 +126,25 @@ float height_at(vec2 xz) {
 		// Broad coastal shelf rises gently into interior terraces and low uplands.
 		float interior = smoothstep(0.0, 0.78, land_t);
 		float plateau = 8.0 + 27.0 * pow(interior, 1.35);
-		float hills_a = terrain_fbm(q * vec2(5.1, 4.2) + so + 3.0, 7);
-		float hills_b = terrain_fbm(q * vec2(12.0, 10.0) + so + 41.0, 5);
+		float hills_a = terrain_fbm(q * vec2(5.1, 4.2) + so + 3.0, 5);
+		float hills_b = terrain_fbm(q * vec2(12.0, 10.0) + so + 41.0, 4);
 		float rolling = (hills_a * 15.0 + hills_b * 3.8) * hill_strength;
 		// A separate per-island switch makes some seeds genuinely low-relief islands.
 		float has_mountains = step(hash12(vec2(seed * 0.731 + 19.1, seed * 1.917 + 7.3)), mountain_chance);
 		// Long, broken mountain spine with noisy foothills rather than isolated conical peaks.
 		vec2 ridge_p = vec2(q.x * 2.15 + q.y * 0.38, q.y * 5.8) + so * 0.07;
 		float ridge_field = ridged(ridge_p * 2.0 + vec2(11.0, 3.0));
-		float ridge_zone_noise = terrain_fbm(q * vec2(3.0, 6.5) + so + 67.0, 5);
+		float ridge_zone_noise = terrain_fbm(q * vec2(3.0, 6.5) + so + 67.0, 4);
 		float spine = smoothstep(0.22, 0.58, ridge_field + ridge_zone_noise * 0.19);
 		float mountain_zone = smoothstep(0.16, 0.40, interior) * (1.0 - smoothstep(0.76, 0.96, interior));
 		float mountain_relief = spine * mountain_zone * (72.0 + 72.0 * ridge_field) * mountain_strength * has_mountains;
 		// Carved drainage-like valleys: broad warped negative channels interrupt the ridges.
-		float drainage = abs(terrain_fbm(q * vec2(8.0, 3.0) + so + 103.0, 5));
+		float drainage = abs(terrain_fbm(q * vec2(8.0, 3.0) + so + 103.0, 3));
 		float valley_cut = smoothstep(0.0, 0.12, drainage) * mountain_relief * 0.16;
 		float h = plateau + rolling + mountain_relief - valley_cut;
 		// Beaches remain close to sea level; the cap is a hard physical limit, not an amplitude hint.
 		h *= smoothstep(0.015, 0.20, land_t);
-		return clamp(h, 0.0, max_height);
+		return clamp(h, 0.0, min(max_height, 200.0));
 	}
 
 	// Underwater shelf follows the same warped coast, then falls away into a deeper basin.
