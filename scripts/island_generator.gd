@@ -130,7 +130,7 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 			"angle": rng.randf_range(0.0, TAU),
 			"long_radius": long_radius,
 			"short_radius": short_radius,
-			"peak_height": rng.randf_range(245.0, 365.0),
+			"peak_height": 200.0 + 400.0 * pow(rng.randf(), 2.15),
 			"frequency": rng.randf_range(0.0032, 0.0052),
 			"phase": rng.randf_range(-1000.0, 1000.0),
 			"warp_strength": rng.randf_range(70.0, 145.0),
@@ -168,7 +168,7 @@ func _find_mountain_centre(
 		var ix := clampi(int(round((point.x / WORLD_SIZE + 0.5) * float(COAST_RESOLUTION - 1))), 0, COAST_RESOLUTION - 1)
 		var iy := clampi(int(round((point.y / WORLD_SIZE + 0.5) * float(COAST_RESOLUTION - 1))), 0, COAST_RESOLUTION - 1)
 		var signed_distance := coast_values[ix + iy * COAST_RESOLUTION]
-		if signed_distance < maxf(320.0, minimum_separation_radius * 0.72):
+		if signed_distance < maxf(150.0, minimum_separation_radius * 0.42):
 			continue
 		var separated := true
 		for other in accepted:
@@ -234,8 +234,17 @@ func _make_height_field(
 				rolling_hills += hill_noise.get_noise_2d(world_x, world_z) * 5.5
 				var micro_relief := detail_noise.get_noise_2d(world_x, world_z) * 1.5
 				height = shore_shelf + broad_uplift
-				height += rolling_hills * _smoothstep(35.0, 260.0, sdf)
+				height += rolling_hills * _smoothstep(0.0, 210.0, sdf)
 				height += micro_relief
+
+				# Seeded coastal hill belt: low rounded rises occur much more often
+				# near the shore, while their broad masks fade smoothly inland.
+				var coastal_hill_band := _smoothstep(-180.0, 500.0, sdf)
+				coastal_hill_band *= 1.0 - _smoothstep(620.0, 1180.0, sdf)
+				var coastal_hill_noise := maxf(hill_noise.get_noise_2d(world_x * 0.82, world_z * 0.82), 0.0)
+				var coastal_hill_shape := coastal_hill_noise * 28.0
+				coastal_hill_shape += absf(broad_noise.get_noise_2d(world_x * 0.72, world_z * 0.72)) * 9.0
+				height += coastal_hill_shape * coastal_hill_band
 
 				# Warped elliptical envelopes create an irregular ridge system and
 				# a broad foothill apron instead of an isolated vertical pillar.
@@ -277,14 +286,19 @@ func _make_height_field(
 						)
 						var secondary_ridged := pow(1.0 - absf(secondary_ridge_noise), 2.15)
 						var valley_mask := pow(maxf(1.0 - absf(broad_variation) * 2.7, 0.0), 2.0)
-						var core_envelope := pow(maxf(mountain_core, 0.0), 1.28)
-						var mountain_coast_fade := _smoothstep(120.0, 980.0, sdf)
-						var foothill_coast_fade := _smoothstep(0.0, 560.0, sdf)
-						var core_height := float(mountain["peak_height"]) * core_envelope
-						core_height *= 0.59 + 0.25 * ridged + 0.16 * secondary_ridged
+						var core_envelope := pow(maxf(mountain_core, 0.0), 1.42)
+						# A narrow summit term breaks the broad central dome into a sharper,
+						# irregular peak while retaining the surrounding ridge system.
+						var summit_spire := pow(maxf(1.0 - radius / 0.36, 0.0), 2.15)
+						var mountain_coast_fade := _smoothstep(-80.0, 520.0, sdf)
+						var foothill_coast_fade := _smoothstep(-180.0, 430.0, sdf)
+						var peak_height := float(mountain["peak_height"])
+						var core_height := peak_height * core_envelope
+						core_height *= 0.43 + 0.22 * ridged + 0.13 * secondary_ridged
+						core_height += peak_height * 0.34 * summit_spire
 						core_height -= float(mountain["peak_height"]) * 0.105 * valley_mask * core_envelope
 						core_height *= mountain_coast_fade
-						var foothill_height := 58.0 * pow(maxf(foothill_apron, 0.0), 1.72)
+						var foothill_height := 76.0 * pow(maxf(foothill_apron, 0.0), 1.58)
 						foothill_height *= 0.70 + 0.20 * ridged + 0.10 * broad_variation
 						foothill_height *= foothill_coast_fade
 						height += maxf(core_height, 0.0) + foothill_height
