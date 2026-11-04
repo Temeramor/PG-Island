@@ -117,8 +117,14 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 	var accepted_centres: Array[Vector2] = []
 
 	for i in range(desired_count):
-		var long_radius := rng.randf_range(330.0, 610.0)
-		var short_radius := rng.randf_range(215.0, 395.0)
+		var peak_height := 200.0 + 400.0 * pow(rng.randf(), 2.15)
+		var height_factor := clampf((peak_height - 200.0) / 400.0, 0.0, 1.0)
+		# Taller peaks belong to broader mountain systems, not just taller
+		# versions of the same footprint. The nonlinear curve gives high
+		# mountains substantially more core area and a wider foothill apron.
+		var massif_scale := lerpf(0.82, 1.62, pow(height_factor, 0.85))
+		var long_radius := rng.randf_range(330.0, 610.0) * massif_scale
+		var short_radius := rng.randf_range(215.0, 395.0) * massif_scale
 		var centre := _find_mountain_centre(rng, coast_values, short_radius, accepted_centres)
 		if centre.x > WORLD_SIZE:
 			if result.is_empty():
@@ -130,10 +136,11 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 			"angle": rng.randf_range(0.0, TAU),
 			"long_radius": long_radius,
 			"short_radius": short_radius,
-			"peak_height": 200.0 + 400.0 * pow(rng.randf(), 2.15),
-			"frequency": rng.randf_range(0.0032, 0.0052),
+			"peak_height": peak_height,
+			"massif_scale": massif_scale,
+			"frequency": rng.randf_range(0.0032, 0.0052) / massif_scale,
 			"phase": rng.randf_range(-1000.0, 1000.0),
-			"warp_strength": rng.randf_range(70.0, 145.0),
+			"warp_strength": rng.randf_range(70.0, 145.0) * massif_scale,
 		})
 	return result
 
