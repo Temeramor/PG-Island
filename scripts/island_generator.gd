@@ -1,5 +1,4 @@
 extends RefCounted
-class_name IslandGenerator
 
 ## Seeded CPU-side data preparation. The visible terrain mesh is displaced on the GPU.
 ## Coast shape (SDF), elevation and offshore bathymetry are separate fields.

@@ -8,8 +8,8 @@ const IslandGeneratorScript = preload("res://scripts/island_generator.gd")
 
 @export_range(128, 768, 32) var terrain_subdivisions: int = 512
 @export_range(128, 768, 32) var ocean_subdivisions: int = 320
-@export var terrain_size: float = 10000.0
-@export var ocean_size: float = 12000.0
+const TERRAIN_SIZE := 10000.0
+const OCEAN_SIZE := 12000.0
 @export var flight_speed: float = 210.0
 @export var initial_seed: int = 0
 
@@ -17,7 +17,7 @@ const HEIGHT_RESOLUTION := 512.0
 const AIR_FOG := Color(0.66, 0.77, 0.87)
 const UNDERWATER_FOG := Color(0.018, 0.12, 0.16)
 
-var generator: IslandGenerator
+var generator
 var terrain_material: ShaderMaterial
 var water_material: ShaderMaterial
 var camera: Camera3D
@@ -85,13 +85,13 @@ func _create_environment() -> void:
 
 func _create_terrain() -> void:
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(terrain_size, terrain_size)
+	plane.size = Vector2(TERRAIN_SIZE, TERRAIN_SIZE)
 	plane.subdivide_width = terrain_subdivisions
 	plane.subdivide_depth = terrain_subdivisions
 
 	terrain_material = ShaderMaterial.new()
 	terrain_material.shader = load("res://shaders/terrain.gdshader") as Shader
-	terrain_material.set_shader_parameter("world_size", terrain_size)
+	terrain_material.set_shader_parameter("world_size", TERRAIN_SIZE)
 	terrain_material.set_shader_parameter("heightmap_resolution", HEIGHT_RESOLUTION)
 	plane.material = terrain_material
 
@@ -99,15 +99,15 @@ func _create_terrain() -> void:
 	instance.name = "GPU_Displaced_Terrain_and_Bathymetry"
 	instance.mesh = plane
 	instance.custom_aabb = AABB(
-		Vector3(-terrain_size * 0.5, -650.0, -terrain_size * 0.5),
-		Vector3(terrain_size, 1250.0, terrain_size)
+		Vector3(-TERRAIN_SIZE * 0.5, -650.0, -TERRAIN_SIZE * 0.5),
+		Vector3(TERRAIN_SIZE, 1250.0, TERRAIN_SIZE)
 	)
 	add_child(instance)
 
 
 func _create_ocean() -> void:
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(ocean_size, ocean_size)
+	plane.size = Vector2(OCEAN_SIZE, OCEAN_SIZE)
 	plane.subdivide_width = ocean_subdivisions
 	plane.subdivide_depth = ocean_subdivisions
 
@@ -121,8 +121,8 @@ func _create_ocean() -> void:
 	instance.position.y = 0.0
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	instance.custom_aabb = AABB(
-		Vector3(-ocean_size * 0.5, -10.0, -ocean_size * 0.5),
-		Vector3(ocean_size, 20.0, ocean_size)
+		Vector3(-OCEAN_SIZE * 0.5, -10.0, -OCEAN_SIZE * 0.5),
+		Vector3(OCEAN_SIZE, 20.0, OCEAN_SIZE)
 	)
 	add_child(instance)
 

@@ -82,7 +82,9 @@ void fragment() {
 		color = mix(shallow_seabed, deep_seabed, smoothstep(0.02, 0.90, depth));
 		color *= 0.95 + macro * 0.07 + medium * 0.025;
 	} else {
-		float beach = 1.0 - smoothstep(3.0, 16.0, h + medium * 1.2);
+		float height_beach = 1.0 - smoothstep(3.0, 16.0, h + medium * 1.2);
+		float coast_beach = 1.0 - smoothstep(6.0, 55.0, max(signed_coast, 0.0));
+		float beach = max(height_beach, coast_beach * 0.72);
 		vec3 sand = mix(sand_wet, sand_dry, smoothstep(0.0, 7.0, h));
 		vec3 grass = mix(grass_low, grass_high, clamp(0.52 + macro * 0.58 + medium * 0.14, 0.0, 1.0));
 		color = mix(grass, sand, beach);

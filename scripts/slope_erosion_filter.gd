@@ -1,5 +1,4 @@
 extends RefCounted
-class_name SlopeErosionFilter
 
 ## Multi-scale slope-aligned channel/ridge displacement.
 ## The method follows the published idea of aligning procedural gullies to terrain
