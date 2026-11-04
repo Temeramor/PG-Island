@@ -67,11 +67,6 @@ vec3 gerstner_waves(vec2 position, float time, out vec3 surface_normal) {
 	return offset;
 }
 
-vec3 reconstruct_view_position(vec2 uv, float depth) {
-	vec4 view_position = inverse(PROJECTION_MATRIX) * vec4(uv * 2.0 - 1.0, depth, 1.0);
-	return view_position.xyz / max(view_position.w, 0.00001);
-}
-
 void vertex() {
 	vec3 base_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	vec3 wave_normal;
@@ -83,7 +78,9 @@ void vertex() {
 }
 
 void fragment() {
-	vec3 scene_view_position = reconstruct_view_position(SCREEN_UV, texture(scene_depth, SCREEN_UV).r);
+	float scene_depth_value = texture(scene_depth, SCREEN_UV).r;
+	vec4 scene_view_h = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, scene_depth_value, 1.0);
+	vec3 scene_view_position = scene_view_h.xyz / max(scene_view_h.w, 0.00001);
 	float water_view_z = (VIEW_MATRIX * vec4(water_world_position, 1.0)).z;
 	float thickness = max(water_view_z - scene_view_position.z, 0.0);
 
@@ -94,7 +91,9 @@ void fragment() {
 	vec3 view_n = normalize((VIEW_MATRIX * vec4(world_n, 0.0)).xyz);
 
 	vec2 refracted_uv = SCREEN_UV + view_n.xy * refraction_strength * clamp(thickness / 30.0, 0.0, 1.0);
-	vec3 refracted_scene = reconstruct_view_position(refracted_uv, texture(scene_depth, refracted_uv).r);
+	float refracted_depth_value = texture(scene_depth, refracted_uv).r;
+	vec4 refracted_view_h = INV_PROJECTION_MATRIX * vec4(refracted_uv * 2.0 - 1.0, refracted_depth_value, 1.0);
+	vec3 refracted_scene = refracted_view_h.xyz / max(refracted_view_h.w, 0.00001);
 	if (refracted_scene.z > water_view_z) {
 		refracted_uv = SCREEN_UV;
 		refracted_scene = scene_view_position;
