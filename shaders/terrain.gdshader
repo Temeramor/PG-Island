@@ -82,8 +82,8 @@ void fragment() {
 		color = mix(shallow_seabed, deep_seabed, smoothstep(0.02, 0.90, depth));
 		color *= 0.95 + macro * 0.07 + medium * 0.025;
 	} else {
-		# Shore material follows the actual coastal landform, not height alone:
-		# flat low shore -> sand, rounded rises -> grass, steep relief -> rock.
+		// Shore material follows the actual coastal landform, not height alone.
+		// Flat low shore -> sand, rounded rises -> grass, steep relief -> rock.
 		float coast_near = 1.0 - smoothstep(0.0, 110.0, max(signed_coast, 0.0));
 		float flat_shore = 1.0 - smoothstep(0.075, 0.23, slope);
 		float low_shore = 1.0 - smoothstep(8.0, 34.0, h + medium * 1.2);
