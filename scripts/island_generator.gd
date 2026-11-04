@@ -262,9 +262,17 @@ func _make_height_field(
 							local.x * 0.006 + phase * 0.13,
 							local.y * 0.006 - phase * 0.09
 						)
+						# Mountain relief eases down toward the coast instead of being
+						# clipped at the shoreline. Keep a small foothill shoulder near
+						# sea level while progressively suppressing the high mountain core.
+						var coastal_exposure := _smoothstep(0.0, 760.0, sdf)
+						var summit_factor := lerpf(0.035, 1.0, coastal_exposure)
+						var foothill_factor := lerpf(0.20, 1.0, coastal_exposure)
 						var core_height := float(mountain["peak_height"]) * pow(maxf(mountain_core, 0.0), 1.28)
-						core_height *= 0.78 + 0.18 * ridged + 0.04 * broad_variation
-						var foothill_height := 34.0 * pow(maxf(foothill_apron, 0.0), 1.65)
+						core_height *= (0.78 + 0.18 * ridged + 0.04 * broad_variation) * summit_factor
+						# A wider, lower apron forms rolling foothills before the beach.
+						var foothill_height := 39.0 * pow(maxf(foothill_apron, 0.0), 1.85)
+						foothill_height *= foothill_factor
 						height += core_height + foothill_height
 				height = maxf(height, 0.35)
 			else:
