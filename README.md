@@ -64,11 +64,8 @@ shaders/water.gdshader содержит четыре волны Герстнер
 
 ## Структура
 
-- project.godot, main.tscn, main.gd
-- scripts/island_generator.gd, scripts/slope_erosion_filter.gd
-- shaders/terrain.gdshader, shaders/water.gdshader
-- docs/SOURCES.md, LICENSE
+**project.godot**, **main.tscn**, **main.gd**, **scripts/island_generator.gd**, **scripts/slope_erosion_filter.gd**, **shaders/terrain.gdshader**, **shaders/water.gdshader**, **docs/SOURCES.md**, **LICENSE**.
 
 ## Источники и лицензии
 
-Ссылки на алгоритмы, учебники и готовые реализации собраны в docs/SOURCES.md. Код проекта написан для этого проекта и распространяется под MIT. Упомянутые сторонние репозитории имеют собственные лицензии; их файлы и готовые ассеты сюда не копировались.
+Ссылки на алгоритмы, учебники и готовые реализации собраны в [docs/SOURCES.md](docs/SOURCES.md). Код проекта написан для этого проекта и распространяется под MIT. Упомянутые сторонние репозитории имеют собственные лицензии; их файлы и готовые ассеты сюда не копировались.
