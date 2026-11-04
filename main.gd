@@ -1,173 +1,211 @@
 extends Node3D
-## Builds the whole scene in code: sky, sun, shader terrain, shader ocean, free-fly camera.
-## Controls: RMB + mouse = look, WASD = move, Q/E = down/up, Shift = fast,
-## mouse wheel = speed, R = new random island, Esc = release mouse.
 
-@export var terrain_size := 1100.0
-@export var subdivisions := 640          # vertices per side of the terrain grid
-@export var water_size := 3000.0
-@export var water_subdivisions := 750
-@export var seed_value := 7.0
+## A code-only procedural island study for Godot 4.7.2.
+## RMB + mouse: look | WASD: fly | Shift: descend | Space: ascend | R: new island | Esc: release mouse
 
-var terrain_mat: ShaderMaterial
-var water_mat: ShaderMaterial
-var env: Environment
-var cam: Camera3D
-var hud: Label
+const IslandGeneratorScript = preload("res://scripts/island_generator.gd")
 
+@export_range(128, 1024, 32) var terrain_subdivisions := 640
+@export_range(128, 1024, 32) var ocean_subdivisions := 768
+const WORLD_SIZE := 6400.0
+@export var terrain_mesh_size := 10000.0
+@export var ocean_size := 12000.0
+@export var initial_seed := 0
+@export var flight_speed := 185.0
+
+var generator: IslandGenerator
+var terrain_material: ShaderMaterial
+var water_material: ShaderMaterial
+var terrain_instance: MeshInstance3D
+var ocean_instance: MeshInstance3D
+var camera: Camera3D
+var environment: Environment
+var status_label: Label
+var active_seed := 0
 var yaw := 0.0
-var pitch := -0.12
-var speed := 60.0
+var pitch := -0.25
 
-const FOG_AIR := Color(0.66, 0.77, 0.88)
-const FOG_WATER := Color(0.04, 0.22, 0.32)
+const AIR_FOG := Color(0.67, 0.77, 0.86)
+const WATER_FOG := Color(0.025, 0.15, 0.20)
 
 
 func _ready() -> void:
-	_build_environment()
-	_build_terrain()
-	_build_water()
-	_build_camera()
-	_build_hud()
+	generator = IslandGeneratorScript.new()
+	_create_environment()
+	_create_terrain()
+	_create_ocean()
+	_create_camera()
+	_create_hud()
+	if initial_seed == 0:
+		var random := RandomNumberGenerator.new()
+		random.randomize()
+		active_seed = random.randi_range(1, 2_000_000_000)
+	else:
+		active_seed = initial_seed
+	_generate_island(active_seed)
 
 
-func _build_environment() -> void:
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.24, 0.45, 0.80)
-	sky_mat.sky_horizon_color = Color(0.66, 0.77, 0.88)
-	sky_mat.ground_horizon_color = Color(0.66, 0.77, 0.88)
-	sky_mat.ground_bottom_color = Color(0.20, 0.30, 0.40)
+func _create_environment() -> void:
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color(0.13, 0.30, 0.53)
+	sky_material.sky_horizon_color = Color(0.68, 0.78, 0.86)
+	sky_material.ground_bottom_color = Color(0.12, 0.18, 0.22)
+	sky_material.ground_horizon_color = Color(0.56, 0.67, 0.75)
 	var sky := Sky.new()
-	sky.sky_material = sky_mat
+	sky.sky_material = sky_material
 
-	env = Environment.new()
-	env.background_mode = Environment.BG_SKY
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.fog_enabled = true
-	env.fog_light_color = FOG_AIR
-	env.fog_density = 0.0006
-	env.glow_enabled = true
+	environment = Environment.new()
+	environment.background_mode = Environment.BG_SKY
+	environment.sky = sky
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.tonemap_exposure = 1.0
+	environment.fog_enabled = true
+	environment.fog_light_color = AIR_FOG
+	environment.fog_density = 0.000035
+	environment.fog_sky_affect = 0.35
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.22
 
-	var we := WorldEnvironment.new()
-	we.environment = env
-	add_child(we)
+	var world_environment := WorldEnvironment.new()
+	world_environment.environment = environment
+	add_child(world_environment)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-32.0, -35.0, 0.0)
-	sun.light_energy = 1.3
+	sun.name = "Sun"
+	sun.rotation_degrees = Vector3(-38.0, -28.0, 0.0)
+	sun.light_color = Color(1.0, 0.93, 0.82)
+	sun.light_energy = 1.35
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 1500.0
+	sun.directional_shadow_max_distance = 6000.0
 	add_child(sun)
 
 
-func _build_terrain() -> void:
-	var mesh := PlaneMesh.new()
-	mesh.size = Vector2(terrain_size, terrain_size)
-	mesh.subdivide_width = subdivisions - 1
-	mesh.subdivide_depth = subdivisions - 1
+func _create_terrain() -> void:
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(terrain_mesh_size, terrain_mesh_size)
+	plane.subdivide_width = terrain_subdivisions - 1
+	plane.subdivide_depth = terrain_subdivisions - 1
 
-	terrain_mat = ShaderMaterial.new()
-	terrain_mat.shader = load("res://shaders/terrain.gdshader")
-	terrain_mat.set_shader_parameter("seed", seed_value)
-	mesh.material = terrain_mat
+	terrain_material = ShaderMaterial.new()
+	terrain_material.shader = load("res://shaders/terrain.gdshader") as Shader
+	terrain_material.set_shader_parameter("world_size", WORLD_SIZE)
+	plane.material = terrain_material
 
-	var mi := MeshInstance3D.new()
-	mi.name = "Terrain"
-	mi.mesh = mesh
-	# the flat plane is displaced on the GPU, so tell the engine how tall it really is
-	mi.custom_aabb = AABB(Vector3(-terrain_size * 0.5, -120.0, -terrain_size * 0.5), Vector3(terrain_size, 320.0, terrain_size))
-	add_child(mi)
-
-
-func _build_water() -> void:
-	var mesh := PlaneMesh.new()
-	mesh.size = Vector2(water_size, water_size)
-	mesh.subdivide_width = water_subdivisions - 1
-	mesh.subdivide_depth = water_subdivisions - 1
-
-	water_mat = ShaderMaterial.new()
-	water_mat.shader = load("res://shaders/water.gdshader")
-	mesh.material = water_mat
-
-	var mi := MeshInstance3D.new()
-	mi.name = "Ocean"
-	mi.mesh = mesh
-	mi.custom_aabb = AABB(Vector3(-water_size * 0.5, -5.0, -water_size * 0.5), Vector3(water_size, 10.0, water_size))
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
+	terrain_instance = MeshInstance3D.new()
+	terrain_instance.name = "IslandTerrainAndBathymetry"
+	terrain_instance.mesh = plane
+	terrain_instance.custom_aabb = AABB(
+		Vector3(-terrain_mesh_size * 0.5, -700.0, -terrain_mesh_size * 0.5),
+		Vector3(terrain_mesh_size, 1500.0, terrain_mesh_size)
+	)
+	add_child(terrain_instance)
 
 
-func _build_camera() -> void:
-	cam = Camera3D.new()
-	cam.far = 6000.0
-	cam.near = 0.3
-	cam.fov = 70.0
-	cam.position = Vector3(0.0, 80.0, 560.0)
-	cam.rotation = Vector3(pitch, yaw, 0.0)
-	add_child(cam)
-	cam.make_current()
+func _create_ocean() -> void:
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(ocean_size, ocean_size)
+	plane.subdivide_width = ocean_subdivisions - 1
+	plane.subdivide_depth = ocean_subdivisions - 1
+
+	water_material = ShaderMaterial.new()
+	water_material.shader = load("res://shaders/water.gdshader") as Shader
+	plane.material = water_material
+
+	ocean_instance = MeshInstance3D.new()
+	ocean_instance.name = "Ocean"
+	ocean_instance.mesh = plane
+	ocean_instance.custom_aabb = AABB(
+		Vector3(-ocean_size * 0.5, -12.0, -ocean_size * 0.5),
+		Vector3(ocean_size, 24.0, ocean_size)
+	)
+	ocean_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ocean_instance)
 
 
-func _build_hud() -> void:
+func _create_camera() -> void:
+	camera = Camera3D.new()
+	camera.name = "FreeFlyCamera"
+	camera.fov = 70.0
+	camera.near = 0.15
+	camera.far = 18000.0
+	camera.position = Vector3(0.0, 670.0, 2050.0)
+	camera.rotation = Vector3(pitch, yaw, 0.0)
+	add_child(camera)
+	camera.make_current()
+
+
+func _create_hud() -> void:
 	var layer := CanvasLayer.new()
+	layer.layer = 10
 	add_child(layer)
-	hud = Label.new()
-	hud.position = Vector2(12.0, 8.0)
-	hud.add_theme_color_override("font_color", Color(1, 1, 1))
-	hud.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	hud.add_theme_constant_override("outline_size", 4)
-	layer.add_child(hud)
-	_update_hud()
+
+	status_label = Label.new()
+	status_label.position = Vector2(18.0, 14.0)
+	status_label.add_theme_color_override("font_color", Color(0.96, 0.98, 1.0))
+	status_label.add_theme_color_override("font_outline_color", Color(0.015, 0.025, 0.035, 0.95))
+	status_label.add_theme_constant_override("outline_size", 5)
+	status_label.add_theme_font_size_override("font_size", 16)
+	layer.add_child(status_label)
+	_update_hud(0.0, 0)
 
 
-func _update_hud() -> void:
-	hud.text = "RMB + mouse: look   WASD/QE: move   Shift: fast   Wheel: speed\nR: new island (seed %.1f)   Esc: release mouse" % seed_value
+func _generate_island(seed_value: int) -> void:
+	active_seed = seed_value
+	var generated: Dictionary = generator.generate(active_seed)
+	terrain_material.set_shader_parameter("island_sdf", generated["sdf_texture"])
+	terrain_material.set_shader_parameter("erosion_field", generated["erosion_texture"])
+	terrain_material.set_shader_parameter("terrain_seed", float(active_seed))
+	terrain_material.set_shader_parameter("mountain_count", int(generated["mountain_count"]))
+	terrain_material.set_shader_parameter("mountain_data", generated["mountain_data"])
+	terrain_material.set_shader_parameter("mountain_shapes", generated["mountain_shapes"])
+	_update_hud(float(generated["land_area_m2"]), int(generated["mountain_count"]))
+
+
+func _update_hud(area_m2: float, mountain_count: int) -> void:
+	var area_text := "building..." if area_m2 <= 0.0 else "%.3f km²" % (area_m2 / 1_000_000.0)
+	status_label.text = (
+		"PROCEDURAL ISLAND  |  seed: %d  |  land: %s  |  mountain masses: %d\n" % [active_seed, area_text, mountain_count]
+		+ "RMB + mouse: look    WASD: fly    Shift: descend    Space: ascend    R: regenerate    Esc: release mouse"
+	)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if event.pressed else Input.MOUSE_MODE_VISIBLE
-		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			speed = minf(speed * 1.15, 1500.0)
-		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			speed = maxf(speed / 1.15, 2.0)
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		yaw -= event.relative.x * 0.0025
-		pitch = clampf(pitch - event.relative.y * 0.0025, -1.5, 1.5)
-		cam.rotation = Vector3(pitch, yaw, 0.0)
+		yaw -= event.relative.x * 0.0024
+		pitch = clampf(pitch - event.relative.y * 0.0024, -1.48, 1.48)
+		camera.rotation = Vector3(pitch, yaw, 0.0)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:
-			seed_value = snappedf(randf_range(1.0, 500.0), 0.1)
-			terrain_mat.set_shader_parameter("seed", seed_value)
-			_update_hud()
+			var rng := RandomNumberGenerator.new()
+			rng.randomize()
+			_generate_island(rng.randi_range(1, 2_000_000_000))
 		elif event.keycode == KEY_ESCAPE:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _process(delta: float) -> void:
-	var dir := Vector3.ZERO
-	var b := cam.global_transform.basis
+	var direction := Vector3.ZERO
+	var basis := camera.global_transform.basis
 	if Input.is_key_pressed(KEY_W):
-		dir -= b.z
+		direction -= basis.z
 	if Input.is_key_pressed(KEY_S):
-		dir += b.z
+		direction += basis.z
 	if Input.is_key_pressed(KEY_A):
-		dir -= b.x
+		direction -= basis.x
 	if Input.is_key_pressed(KEY_D):
-		dir += b.x
-	if Input.is_key_pressed(KEY_E):
-		dir += Vector3.UP
-	if Input.is_key_pressed(KEY_Q):
-		dir -= Vector3.UP
-	if dir != Vector3.ZERO:
-		var mult := 4.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0
-		cam.global_position += dir.normalized() * speed * mult * delta
+		direction += basis.x
+	if Input.is_key_pressed(KEY_SPACE):
+		direction += Vector3.UP
+	if Input.is_key_pressed(KEY_SHIFT):
+		direction -= Vector3.UP
+	if direction.length_squared() > 0.0:
+		camera.global_position += direction.normalized() * flight_speed * delta
 
-	# cheap underwater look: dense blue fog when the camera is below the surface
-	var under := cam.global_position.y < 0.0
-	env.fog_light_color = FOG_WATER if under else FOG_AIR
-	env.fog_density = 0.035 if under else 0.0006
+	var underwater := camera.global_position.y < -0.5
+	environment.fog_light_color = WATER_FOG if underwater else AIR_FOG
+	environment.fog_density = 0.018 if underwater else 0.000035
