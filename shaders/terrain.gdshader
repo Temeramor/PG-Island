@@ -82,16 +82,20 @@ void fragment() {
 		color = mix(shallow_seabed, deep_seabed, smoothstep(0.02, 0.90, depth));
 		color *= 0.95 + macro * 0.07 + medium * 0.025;
 	} else {
-		float height_beach = 1.0 - smoothstep(3.0, 16.0, h + medium * 1.2);
-		float coast_beach = 1.0 - smoothstep(6.0, 55.0, max(signed_coast, 0.0));
-		float beach = max(height_beach, coast_beach * 0.72);
+		# Shore material follows the actual coastal landform, not height alone:
+		# flat low shore -> sand, rounded rises -> grass, steep relief -> rock.
+		float coast_near = 1.0 - smoothstep(0.0, 110.0, max(signed_coast, 0.0));
+		float flat_shore = 1.0 - smoothstep(0.075, 0.23, slope);
+		float low_shore = 1.0 - smoothstep(8.0, 34.0, h + medium * 1.2);
+		float beach = coast_near * flat_shore * low_shore;
 		vec3 sand = mix(sand_wet, sand_dry, smoothstep(0.0, 7.0, h));
 		vec3 grass = mix(grass_low, grass_high, clamp(0.52 + macro * 0.58 + medium * 0.14, 0.0, 1.0));
 		color = mix(grass, sand, beach);
 
 		float rock_slope = smoothstep(0.16, 0.48, slope + medium * 0.025);
 		float rock_altitude = smoothstep(150.0, 260.0, h + macro * 24.0) * 0.84;
-		float rock_mask = max(rock_slope, rock_altitude);
+		float coastal_cliff = coast_near * smoothstep(0.13, 0.36, slope) * smoothstep(8.0, 45.0, h);
+		float rock_mask = max(max(rock_slope, rock_altitude), coastal_cliff);
 		vec3 rock = mix(rock_dark, rock_light, clamp(0.54 + macro * 0.35 + fine * 0.08, 0.0, 1.0));
 		color = mix(color, rock, rock_mask);
 
