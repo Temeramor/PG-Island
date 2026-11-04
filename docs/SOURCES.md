@@ -1,41 +1,44 @@
-# Источники, гайды и готовые референсы
+# Sources, references and licensing notes
 
-Этот список включает использованные принципы и полезные проекты для дальнейшего изучения. В репозиторий не копировались готовые модели, текстуры или исходные файлы перечисленных проектов.
+The repository contains an original Godot implementation of publicly described techniques. No third-party model, image, heightmap, plugin, or source file is bundled. The links below are references for the algorithms and for further study; the license of each external repository applies to that repository, not automatically to this project.
 
-## Островная форма и берег
+## Island silhouette, coast and height fields
 
-- **Sebastian Lague — Procedural Landmass Generation (Unity, E02–E21; E11 — Falloff Map).** Хорошее пошаговое введение: шумовая карта, falloff-маска и контроль высоты у краёв. GitHub: <https://github.com/SebLague/Procedural-Landmass-Generation>. Видео E11: <https://www.youtube.com/watch?v=COmtTyLCd6I>. Репозиторий MIT.
-- **Red Blob Games — Making maps with noise functions.** Объясняет частоту, октавы, распределение высот и то, почему форму острова разумно отделять от деталей рельефа. <https://www.redblobgames.com/maps/terrain-from-noise/>
-- **Red Blob Games — Island shaping.** Практический разбор функций reshaping для изолиний и островного силуэта, включая distance-field-подход. <https://www.redblobgames.com/maps/mapgen2/island-shaping.html>
-- **Red Blob Games — Mapgen2.** Интерактивный генератор островных карт с открытым JavaScript-кодом; полезен для проверки сидов, берегов, высот и биомов. <https://www.redblobgames.com/maps/mapgen2/>. Исходники: <https://github.com/redblobgames/mapgen2> (Apache-2.0).
-- **Red Blob Games — Mapgen4.** Более сложный интерактивный генератор, показывающий влияние дождя, испарения, ветра, рек и биомов. <https://www.redblobgames.com/maps/mapgen4/>
-- **Heman — prideout/heman.** C99 single-header библиотека с simplex FBM, генерацией острова/архипелага, SDF, нормалями и AO. MIT. Это полезный кодовый референс, но для Godot/GDScript пришлось бы собирать C-код; в этот проект библиотека не встроена. <https://github.com/prideout/heman> · <https://heman.readthedocs.io/en/latest/generate.html> · <https://prideout.net/heman/>
+- **Red Blob Games — Making maps with noise functions.** Noise octaves, height distributions and terrain shaping: <https://www.redblobgames.com/maps/terrain-from-noise/>
+- **Red Blob Games — Island shaping.** Signed distance fields and separating island shape from height: <https://www.redblobgames.com/maps/mapgen2/island-shaping.html>
+- **Red Blob Games — Mapgen2.** Interactive source project; Apache-2.0: <https://www.redblobgames.com/maps/mapgen2/> · <https://github.com/redblobgames/mapgen2>
+- **Red Blob Games — Mapgen4.** Interactive exploration of procedural terrain, drainage, rain, rivers, and biome layers: <https://www.redblobgames.com/maps/mapgen4/> · <https://github.com/redblobgames/mapgen4> (Apache-2.0). Mapgen4 is an educational visual generator rather than a physically accurate terrain simulator.
+- **Sebastian Lague — Procedural Landmass Generation.** Step-by-step Unity project covering noise, falloff maps, mesh construction and terrain texturing; GitHub repository is MIT: <https://github.com/SebLague/Procedural-Landmass-Generation> · <https://www.youtube.com/playlist?list=PLFt_AvWsXl0eBW2EiBtl_sxmDtSgZBxB3>
+- **Heman — prideout/heman.** Single-header C99 utility for procedural heightmaps, simplex FBM, island generation, signed-distance fields, normals and AO; MIT: <https://github.com/prideout/heman> · <https://heman.readthedocs.io/en/latest/generate.html>
+- **Godot FastNoiseLite.** Built-in noise implementation; Simplex, FBM, ridged fractal and domain-warp controls: <https://docs.godotengine.org/en/stable/classes/class_fastnoiselite.html>
 
-## Шум, холмы и горы
+## Hills, ridges, procedural noise and shaders
 
-- **Inigo Quilez — Domain Warping.** Искажение координат другим полем шума для менее радиальных, более органичных берегов и рельефа. <https://iquilezles.org/articles/warp/>
-- **Inigo Quilez — Advanced noise / morenoise.** Шум с производными и контролем вклада последующих октав; полезен для более спокойных долин и структурированных склонов. <https://iquilezles.org/articles/morenoise/>
-- **The Book of Shaders — Chapter 13: Fractal Brownian Motion.** Объясняет fBm, turbulence, ridge-подобные конструкции и суммирование октав. <https://thebookofshaders.com/13/>
-- **Godot FastNoiseLite.** Встроенный класс генерации Simplex, Perlin, Value, Cellular, FBM, Ridged и Domain Warp. Используется в runtime-генераторе маски без внешнего аддона. <https://docs.godotengine.org/en/stable/classes/class_fastnoiselite.html>
+- **Inigo Quilez — Domain Warping.** Coordinate warping by another noise field: <https://iquilezles.org/articles/warp/>
+- **Inigo Quilez — Morenoise.** Noise with derivatives and slope-aware octave contribution: <https://iquilezles.org/articles/morenoise/>
+- **The Book of Shaders — Chapter 13: Fractal Brownian Motion.** fBm, turbulence and octave summation: <https://thebookofshaders.com/13/>
+- **Godot 4.7 spatial shader reference.** Vertex/fragment stages, depth and screen textures: <https://docs.godotengine.org/en/4.7/tutorials/shaders/shader_reference/spatial_shader.html>
 
-## Эрозия и гидрология
+## Erosion and drainage
 
-- **Rune Skovbo Johansen — Fast and Gorgeous Erosion Filter (2026).** Направленные борозды и гребни строятся как специальный шум, выровненный по градиенту склона; метод не является симуляцией потоков воды и пригоден для вычисления по точкам/GPU. Статья: <https://blog.runevision.com/2026/03/fast-and-gorgeous-erosion-filter.html>. Godot community prototype: <https://forum.godotengine.org/t/fast-and-gorgeous-erosion-filter/136436>. В проекте использована самостоятельная упрощённая реализация принципа, а не дословный порт фильтра.
-- **Sebastian Lague — Hydraulic Erosion.** Классическая симуляция капель и переноса осадка; полезна как отдельный этап bake heightmap. <https://github.com/SebLague/Hydraulic-Erosion>
-- **UnityTerrainErosionGPU.** Compute Shader-пример гидравлической и термической эрозии. Unity-ориентирован, но полезен для изучения потока и осадка. <https://github.com/bshishov/UnityTerrainErosionGPU>
-- **GuilBlack/Erosion.** Compute-shader прототип клеточной эрозии. <https://github.com/GuilBlack/Erosion>
-- **Godot Compute Shader Heightmap Demo.** Проект из Godot Asset Library с обработкой heightmap compute shader; полезен как стартовый пример GPU-обработки в Godot 4.7. В Asset Library есть исходная версия 4.2, а в официальном Godot Asset Store опубликована версия с минимальной версией Godot 4.7. <https://godotengine.org/asset-library/asset/2784> · <https://store.godotengine.org/asset/godot-foundation/compute-shader-heightmap-demo/>
+- **Rune Skovbo Johansen — Fast and Gorgeous Erosion Filter (30 March 2026).** Gradient-aligned procedural gullies and ridges that can be evaluated independently per point: <https://blog.runevision.com/2026/03/fast-and-gorgeous-erosion-filter.html>. The published filter is MPL-2.0. This project implements a lightweight original multi-scale approximation of the slope-aligned principle; it is not a port of the full advanced filter.
+- **Henry1 — Godot community prototype for the Fast and Gorgeous Erosion Filter.** Public discussion and GDScript prototype: <https://forum.godotengine.org/t/fast-and-gorgeous-erosion-filter/136436>. Used as a reference for slope-aligned stripe construction, not copied verbatim.
+- **Sebastian Lague — Hydraulic Erosion.** Particle-based hydraulic erosion simulation; MIT: <https://github.com/SebLague/Hydraulic-Erosion>
+- **UnityTerrainErosionGPU.** Unity compute-shader implementation of hydraulic and thermal erosion inspired by shallow-water equations: <https://github.com/bshishov/UnityTerrainErosionGPU>
+- **Godot Compute Shader Heightmap Demo.** Official Godot Foundation example for compute-shader heightmap generation; inspect the release page for the current project version and license: <https://godotengine.org/asset-library/asset/2784> · <https://store.godotengine.org/asset/godot-foundation/compute-shader-heightmap-demo/>
 
-## Вода и подводная часть
+## Water, waves and underwater rendering
 
-- **GPU Gems 1 — Effective Water Simulation from Physical Models.** Классический разбор волн Герстнера и нормалей поверхности. <https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models>
-- **Chrisknyfe/boujie_water_shader.** Godot water shader с Gerstner waves, refraction, depth fog и foam; MIT. <https://github.com/Chrisknyfe/boujie_water_shader>
-- **LesusX/Water-Shader.** Godot 4 MIT-проект с волнами, caustics и пеной. <https://github.com/LesusX/Water-Shader>
-- **emilje/godot-water-shader.** Godot 4 MIT-проект с Gerstner waves, Jacobian/shore foam и depth fade. <https://github.com/emilje/godot-water-shader>
-- **Godot spatial shader reference.** Документация по vertex/fragment стадиям, depth texture и экранным данным. <https://docs.godotengine.org/en/4.7/tutorials/shaders/shader_reference/spatial_shader.html>
+- **GPU Gems 1 — Effective Water Simulation from Physical Models.** Gerstner wave model and surface normals: <https://developer.nvidia.com/gpugems/gpugems/part-i-natural-effects/chapter-1-effective-water-simulation-physical-models>
+- **Chrisknyfe/boujie_water_shader.** Godot water shader with Gerstner waves, refraction, Fresnel, depth fog and shore foam; MIT: <https://github.com/Chrisknyfe/boujie_water_shader>
+- **LesusX/Water-Shader.** Godot 4 water shader including caustics and foam; MIT: <https://github.com/LesusX/Water-Shader>
+- **emilje/godot-water-shader.** Godot 4 Gerstner water and shoreline effects: <https://github.com/emilje/godot-water-shader>
 
-## Важные примечания
+## How the references are used here
 
-- Для проекта нужен только Godot 4.7.2; все runtime noise-функции и материалы находятся в проекте, а FastNoiseLite встроен в движок.
-- Compute-shader проекты Unity и C-библиотека Heman приведены как исследовательские референсы, но не требуются для запуска.
-- Фильтр Runevision указан как вдохновение для структуры борозд; текущая версия — облегчённая самостоятельная аппроксимация, а не идентичная реализация исходного фильтра.
+- Separate coastline SDF and elevation fields: Red Blob Games.
+- Domain warp, Simplex FBM and ridged details: Inigo Quilez, The Book of Shaders and Godot FastNoiseLite.
+- Multi-scale slope-aligned channels/ridges: Rune Skovbo Johansen and the Godot community prototype, implemented as a lighter original approximation.
+- GPU surface displacement, depth sampling and procedural layer shading: Godot spatial shader documentation.
+- Gerstner waves and screen-space water composition: GPU Gems and the Boujie Water Shader feature set.
+- Sebastian Lague, Heman and UnityTerrainErosionGPU are additional source-code references; none of their code is required to run this project.
