@@ -117,13 +117,8 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 	var accepted_centres: Array[Vector2] = []
 
 	for i in range(desired_count):
-		var peak_height := 200.0 + 400.0 * pow(rng.randf(), 2.15)
-		var height_ratio := clampf((peak_height - 200.0) / 400.0, 0.0, 1.0)
-		# Taller mountains grow in every horizontal direction, not just vertically.
-		# The radius multiplier increases footprint area quadratically.
-		var size_scale := lerpf(0.82, 1.62, pow(height_ratio, 0.85))
-		var long_radius := rng.randf_range(330.0, 610.0) * size_scale
-		var short_radius := rng.randf_range(215.0, 395.0) * size_scale
+		var long_radius := rng.randf_range(330.0, 610.0)
+		var short_radius := rng.randf_range(215.0, 395.0)
 		var centre := _find_mountain_centre(rng, coast_values, short_radius, accepted_centres)
 		if centre.x > WORLD_SIZE:
 			if result.is_empty():
@@ -135,11 +130,10 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 			"angle": rng.randf_range(0.0, TAU),
 			"long_radius": long_radius,
 			"short_radius": short_radius,
-			"peak_height": peak_height,
-			# Lower ridge frequency on larger massifs creates broader ridges.
-			"frequency": rng.randf_range(0.0032, 0.0052) / lerpf(1.0, 1.32, height_ratio),
+			"peak_height": 200.0 + 400.0 * pow(rng.randf(), 2.15),
+			"frequency": rng.randf_range(0.0032, 0.0052),
 			"phase": rng.randf_range(-1000.0, 1000.0),
-			"warp_strength": rng.randf_range(70.0, 145.0) * lerpf(0.9, 1.35, height_ratio),
+			"warp_strength": rng.randf_range(70.0, 145.0),
 		})
 	return result
 
@@ -273,10 +267,8 @@ func _make_height_field(
 						local.y * 0.0024 - phase * 0.37
 					) * 0.13
 
-					# The core envelope is deliberately broader than before: high
-					# mountains should have substantial upper shoulders, not needle peaks.
-					var mountain_core := 1.0 - _smoothstep(0.04, 1.24, radius)
-					var foothill_apron := 1.0 - _smoothstep(0.54, 2.52, radius)
+					var mountain_core := 1.0 - _smoothstep(0.10, 1.14, radius)
+					var foothill_apron := 1.0 - _smoothstep(0.62, 2.38, radius)
 					if mountain_core > 0.0005 or foothill_apron > 0.0005:
 						var frequency := float(mountain["frequency"])
 						var ridge_noise := mountain_noise.get_noise_2d(
@@ -294,10 +286,10 @@ func _make_height_field(
 						)
 						var secondary_ridged := pow(1.0 - absf(secondary_ridge_noise), 2.15)
 						var valley_mask := pow(maxf(1.0 - absf(broad_variation) * 2.7, 0.0), 2.0)
-						var core_envelope := pow(maxf(mountain_core, 0.0), 1.12)
-						# Keep a defined summit, but widen its shoulder so it belongs to a
-						# mountain mass rather than forming a thin isolated needle.
-						var summit_spire := pow(maxf(1.0 - radius / 0.52, 0.0), 1.65)
+						var core_envelope := pow(maxf(mountain_core, 0.0), 1.42)
+						# A narrow summit term breaks the broad central dome into a sharper,
+						# irregular peak while retaining the surrounding ridge system.
+						var summit_spire := pow(maxf(1.0 - radius / 0.36, 0.0), 2.15)
 						var mountain_coast_fade := _smoothstep(-80.0, 320.0, sdf)
 						var foothill_coast_fade := _smoothstep(-180.0, 430.0, sdf)
 						var peak_height := float(mountain["peak_height"])
