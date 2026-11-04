@@ -7,7 +7,7 @@ const WORLD_SIZE := 10000.0
 const COAST_RESOLUTION := 1024
 const HEIGHT_RESOLUTION := 1024
 const TARGET_LAND_AREA_M2 := 4_000_000.0
-const MAX_MOUNTAIN_MASSES := 6
+const MAX_MOUNTAIN_MASSES := 5
 
 const ErosionFilterScript = preload("res://scripts/slope_erosion_filter.gd")
 
@@ -117,8 +117,8 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 	var accepted_centres: Array[Vector2] = []
 
 	for i in range(desired_count):
-		var long_radius := rng.randf_range(470.0, 820.0)
-		var short_radius := rng.randf_range(300.0, 560.0)
+		var long_radius := rng.randf_range(330.0, 610.0)
+		var short_radius := rng.randf_range(215.0, 395.0)
 		var centre := _find_mountain_centre(rng, coast_values, short_radius, accepted_centres)
 		if centre.x > WORLD_SIZE:
 			if result.is_empty():
@@ -130,7 +130,7 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 			"angle": rng.randf_range(0.0, TAU),
 			"long_radius": long_radius,
 			"short_radius": short_radius,
-			"peak_height": rng.randf_range(215.0, 335.0),
+			"peak_height": rng.randf_range(245.0, 365.0),
 			"frequency": rng.randf_range(0.0032, 0.0052),
 			"phase": rng.randf_range(-1000.0, 1000.0),
 			"warp_strength": rng.randf_range(70.0, 145.0),
@@ -138,14 +138,21 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 	return result
 
 func _roll_mountain_count(rng: RandomNumberGenerator) -> int:
-	# One mountain is guaranteed. Each later mountain is 25% less likely
-	# than the previous one: 75%, 56.25%, 42.19%, and so on.
+	# Exactly one massif is guaranteed. Additional massifs become sharply rarer:
+	# P(2nd)=75%, P(3rd|2nd)=38%, P(4th|3rd)=16%, P(5th|4th)=6%.
 	var count := 1
-	var next_probability := 0.75
-	while count < MAX_MOUNTAIN_MASSES and rng.randf() < next_probability:
-		count += 1
-		next_probability *= 0.75
-	return count
+	if rng.randf() >= 0.75:
+		return count
+	count = 2
+	if rng.randf() >= 0.38:
+		return count
+	count = 3
+	if rng.randf() >= 0.16:
+		return count
+	count = 4
+	if rng.randf() >= 0.06:
+		return count
+	return 5
 
 func _find_mountain_centre(
 	rng: RandomNumberGenerator,
@@ -161,7 +168,7 @@ func _find_mountain_centre(
 		var ix := clampi(int(round((point.x / WORLD_SIZE + 0.5) * float(COAST_RESOLUTION - 1))), 0, COAST_RESOLUTION - 1)
 		var iy := clampi(int(round((point.y / WORLD_SIZE + 0.5) * float(COAST_RESOLUTION - 1))), 0, COAST_RESOLUTION - 1)
 		var signed_distance := coast_values[ix + iy * COAST_RESOLUTION]
-		if signed_distance < maxf(185.0, minimum_separation_radius * 0.62):
+		if signed_distance < maxf(320.0, minimum_separation_radius * 0.72):
 			continue
 		var separated := true
 		for other in accepted:
@@ -251,8 +258,8 @@ func _make_height_field(
 						local.y * 0.0024 - phase * 0.37
 					) * 0.13
 
-					var mountain_core := 1.0 - _smoothstep(0.08, 1.22, radius)
-					var foothill_apron := 1.0 - _smoothstep(0.48, 2.05, radius)
+					var mountain_core := 1.0 - _smoothstep(0.10, 1.14, radius)
+					var foothill_apron := 1.0 - _smoothstep(0.62, 2.38, radius)
 					if mountain_core > 0.0005 or foothill_apron > 0.0005:
 						var frequency := float(mountain["frequency"])
 						var ridge_noise := mountain_noise.get_noise_2d(
@@ -271,11 +278,15 @@ func _make_height_field(
 						var secondary_ridged := pow(1.0 - absf(secondary_ridge_noise), 2.15)
 						var valley_mask := pow(maxf(1.0 - absf(broad_variation) * 2.7, 0.0), 2.0)
 						var core_envelope := pow(maxf(mountain_core, 0.0), 1.28)
+						var mountain_coast_fade := _smoothstep(120.0, 980.0, sdf)
+						var foothill_coast_fade := _smoothstep(0.0, 560.0, sdf)
 						var core_height := float(mountain["peak_height"]) * core_envelope
 						core_height *= 0.59 + 0.25 * ridged + 0.16 * secondary_ridged
 						core_height -= float(mountain["peak_height"]) * 0.105 * valley_mask * core_envelope
-						var foothill_height := 39.0 * pow(maxf(foothill_apron, 0.0), 1.65)
-						foothill_height *= 0.72 + 0.20 * ridged + 0.08 * broad_variation
+						core_height *= mountain_coast_fade
+						var foothill_height := 58.0 * pow(maxf(foothill_apron, 0.0), 1.72)
+						foothill_height *= 0.70 + 0.20 * ridged + 0.10 * broad_variation
+						foothill_height *= foothill_coast_fade
 						height += maxf(core_height, 0.0) + foothill_height
 				height = maxf(height, 0.35)
 			else:

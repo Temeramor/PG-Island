@@ -50,3 +50,15 @@ The repository contains an original Godot implementation of publicly described t
 ## Terrain3D visual reference
 
 - **TokisanGames — Terrain3D.** Open-source Godot terrain editor/rendering system (MIT): <https://github.com/TokisanGames/Terrain3D>. Its demo's mountainous appearance is a useful visual target, but the main demo terrain is stored as authored binary region resources rather than as a reusable procedural mountain-generation function. This project does not claim to reproduce that authored heightmap or copy Terrain3D source. The island uses its own seeded height-field, ridge, valley and erosion pipeline; the existing coastline and ocean remain separate.
+
+
+## Additional hydraulic and thermal erosion references
+
+- **10Kaiser10 — hydraulic-erosion.** Unity compute-shader demonstration that runs many independent water droplets in parallel and applies their sediment changes to a height field: <https://github.com/10Kaiser10/hydraulic-erosion>. Used as a reference for the particle lifecycle, sediment capacity and erosion/deposition stages. No source code or assets are copied into this project.
+- **Babylon.js — Compute Shaders / Hydraulic Erosion.** Documentation for the GPU compute-shader architecture and its port of the droplet simulation: <https://doc.babylonjs.com/features/featuresDeepDive/materials/shaders/computeShader/>. This is a technical reference only; this project currently performs height-field generation on the CPU.
+- **bshishov — UnityTerrainErosionGPU.** Grid-based shallow-water model with separate water flux, velocity, sediment, hydraulic erosion and thermal-erosion passes; the README cites Mei et al. (2007) and Jákó & Tóth (2011): <https://github.com/bshishov/UnityTerrainErosionGPU>. The current Godot implementation adapts the model structure and equations, not the Unity C# or HLSL source files.
+- **eloncode — UnityTerrainErosionGPU (Gitee).** User-supplied reference for GPU hydraulic and thermal erosion: <https://gitee.com/eloncode/UnityTerrainErosionGPU>. Used as a conceptual reference; no code or binary resources are bundled.
+- **Mei, Decaudin & Hu (2007).** *Fast Hydraulic Erosion Simulation and Visualization on GPU*, Pacific Graphics: <http://www.nlpr.ia.ac.cn/2007papers/gjhy/gh116.pdf>. Reference for grid-based GPU hydraulic erosion.
+- **Jákó & Tóth (2011).** *Fast Hydraulic and Thermal Erosion on GPU*, Eurographics Short Papers: <http://old.cescg.org/CESCG-2011/papers/TUBudapest-Jako-Balazs.pdf>. Reference for coupling hydraulic and thermal material transport.
+
+The current Godot erosion stages are independently implemented in GDScript. They do not contain copied Unity kernels, the Rune Skovbo Johansen shader function, or third-party binary resources. The particle and shallow-water stages are seeded and deterministic; their CPU cost is intentionally traded for reproducible generation in the existing project architecture.
