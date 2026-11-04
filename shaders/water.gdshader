@@ -112,7 +112,8 @@ void fragment() {
 		refracted_uv = SCREEN_UV;
 		refracted_view = scene_view;
 	}
-	float optical_depth = max(refracted_view.z - water_view_z, 0.0);
+	// View-space Z is negative in front of the camera; depth increases as Z becomes more negative.
+	float optical_depth = max(water_view_z - refracted_view.z, 0.0);
 	vec3 refracted_color = textureLod(screen_texture, refracted_uv, 0.0).rgb;
 	vec3 transmittance = exp(-absorption * optical_depth);
 
