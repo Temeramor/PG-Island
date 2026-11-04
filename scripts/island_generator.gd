@@ -168,7 +168,7 @@ func _find_mountain_centre(
 		var ix := clampi(int(round((point.x / WORLD_SIZE + 0.5) * float(COAST_RESOLUTION - 1))), 0, COAST_RESOLUTION - 1)
 		var iy := clampi(int(round((point.y / WORLD_SIZE + 0.5) * float(COAST_RESOLUTION - 1))), 0, COAST_RESOLUTION - 1)
 		var signed_distance := coast_values[ix + iy * COAST_RESOLUTION]
-		if signed_distance < maxf(150.0, minimum_separation_radius * 0.42):
+		if signed_distance < maxf(300.0, minimum_separation_radius * 0.80):
 			continue
 		var separated := true
 		for other in accepted:
@@ -290,13 +290,14 @@ func _make_height_field(
 						# A narrow summit term breaks the broad central dome into a sharper,
 						# irregular peak while retaining the surrounding ridge system.
 						var summit_spire := pow(maxf(1.0 - radius / 0.36, 0.0), 2.15)
-						var mountain_coast_fade := _smoothstep(-80.0, 520.0, sdf)
+						var mountain_coast_fade := _smoothstep(-80.0, 320.0, sdf)
 						var foothill_coast_fade := _smoothstep(-180.0, 430.0, sdf)
 						var peak_height := float(mountain["peak_height"])
 						var core_height := peak_height * core_envelope
 						core_height *= 0.43 + 0.22 * ridged + 0.13 * secondary_ridged
 						core_height += peak_height * 0.34 * summit_spire
-						core_height -= float(mountain["peak_height"]) * 0.105 * valley_mask * core_envelope
+						core_height -= peak_height * 0.045 * valley_mask * core_envelope
+						core_height = minf(maxf(core_height, peak_height * summit_spire), peak_height)
 						core_height *= mountain_coast_fade
 						var foothill_height := 76.0 * pow(maxf(foothill_apron, 0.0), 1.58)
 						foothill_height *= 0.70 + 0.20 * ridged + 0.10 * broad_variation
