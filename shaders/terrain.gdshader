@@ -91,6 +91,9 @@ void fragment() {
 		vec3 sand = mix(sand_wet, sand_dry, smoothstep(0.0, 7.0, h));
 		vec3 grass = mix(grass_low, grass_high, clamp(0.52 + macro * 0.58 + medium * 0.14, 0.0, 1.0));
 		color = mix(grass, sand, beach);
+		float coastal_grass = coast_near * smoothstep(12.0, 32.0, h);
+		coastal_grass *= 1.0 - smoothstep(0.28, 0.48, slope);
+		color = mix(color, grass, coastal_grass);
 
 		float rock_slope = smoothstep(0.16, 0.48, slope + medium * 0.025);
 		float rock_altitude = smoothstep(150.0, 260.0, h + macro * 24.0) * 0.84;
