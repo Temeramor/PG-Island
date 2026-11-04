@@ -189,15 +189,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	var direction := Vector3.ZERO
-	var basis := camera.global_transform.basis
+	var camera_basis := camera.global_transform.basis
 	if Input.is_key_pressed(KEY_W):
-		direction -= basis.z
+		direction -= camera_basis.z
 	if Input.is_key_pressed(KEY_S):
-		direction += basis.z
+		direction += camera_basis.z
 	if Input.is_key_pressed(KEY_A):
-		direction -= basis.x
+		direction -= camera_basis.x
 	if Input.is_key_pressed(KEY_D):
-		direction += basis.x
+		direction += camera_basis.x
 	if Input.is_key_pressed(KEY_SPACE):
 		direction += Vector3.UP
 	if Input.is_key_pressed(KEY_SHIFT):

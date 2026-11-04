@@ -16,7 +16,6 @@ uniform vec3 absorption = vec3(0.20, 0.075, 0.035);
 varying vec3 water_world_position;
 varying vec3 water_world_normal;
 
-const float TAU = 6.28318530718;
 const vec4 WAVE_DATA[4] = vec4[4](
 	vec4(1.00, 0.12, 0.92, 250.0),
 	vec4(0.58, 0.82, 0.66, 150.0),
