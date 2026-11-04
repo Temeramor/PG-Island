@@ -68,7 +68,7 @@ vec3 gerstner_waves(vec2 position, float time, out vec3 surface_normal) {
 }
 
 vec3 reconstruct_view_position(vec2 uv, float depth) {
-	vec4 view_position = INV_PROJECTION_MATRIX * vec4(uv * 2.0 - 1.0, depth, 1.0);
+	vec4 view_position = inverse(PROJECTION_MATRIX) * vec4(uv * 2.0 - 1.0, depth, 1.0);
 	return view_position.xyz / max(view_position.w, 0.00001);
 }
 
