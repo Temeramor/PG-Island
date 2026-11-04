@@ -8,12 +8,12 @@ extends RefCounted
 ## This is a compact CPU implementation, not a verbatim source port.
 
 const WORLD_SIZE := 10000.0
-const RESOLUTION := 512
+const RESOLUTION := 1024
 const COAST_RESOLUTION := 1024
-const DROPLET_COUNT := 6500
-const DROPLET_LIFETIME := 22
-const OCTAVES := 4
-const THERMAL_ITERATIONS := 2
+const DROPLET_COUNT := 16000
+const DROPLET_LIFETIME := 28
+const OCTAVES := 5
+const THERMAL_ITERATIONS := 4
 
 
 func apply(
@@ -272,7 +272,7 @@ func _apply_thermal_relaxation(
 				if coast_sdf[right_coast_x + coast_y * COAST_RESOLUTION] > 0.0:
 					var right_difference := current[index] - current[right]
 					if absf(right_difference) > talus_height:
-						var right_transfer := minf((absf(right_difference) - talus_height) * 0.14, 1.0)
+						var right_transfer := minf((absf(right_difference) - talus_height) * 0.17, 1.25)
 						if right_difference > 0.0:
 							delta[index] -= right_transfer
 							delta[right] += right_transfer
@@ -282,7 +282,7 @@ func _apply_thermal_relaxation(
 				if coast_sdf[coast_x + down_coast_y * COAST_RESOLUTION] > 0.0:
 					var down_difference := current[index] - current[down]
 					if absf(down_difference) > talus_height:
-						var down_transfer := minf((absf(down_difference) - talus_height) * 0.14, 1.0)
+						var down_transfer := minf((absf(down_difference) - talus_height) * 0.17, 1.25)
 						if down_difference > 0.0:
 							delta[index] -= down_transfer
 							delta[down] += down_transfer

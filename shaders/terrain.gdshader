@@ -58,7 +58,7 @@ void vertex() {
 	float h_r = textureLod(height_field, clamp(UV + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0)), 0.0).r;
 	float h_d = textureLod(height_field, clamp(UV - vec2(0.0, texel.y), vec2(0.0), vec2(1.0)), 0.0).r;
 	float h_u = textureLod(height_field, clamp(UV + vec2(0.0, texel.y), vec2(0.0), vec2(1.0)), 0.0).r;
-	float sample_distance = world_size / heightmap_resolution;
+	float sample_distance = world_size / (heightmap_resolution - 1.0);
 	vec2 gradient = vec2(h_r - h_l, h_u - h_d) / (2.0 * sample_distance);
 	VERTEX.y = h;
 	NORMAL = normalize(vec3(-gradient.x, 1.0, -gradient.y));

@@ -45,3 +45,8 @@ The repository contains an original Godot implementation of publicly described t
 - GPU surface displacement, depth sampling and procedural layer shading: Godot spatial shader documentation.
 - Gerstner waves and screen-space water composition: GPU Gems and the Boujie Water Shader feature set.
 - Sebastian Lague, Heman and UnityTerrainErosionGPU are additional source-code references; none of their code is required to run this project.
+
+
+## Terrain3D visual reference
+
+- **TokisanGames — Terrain3D.** Open-source Godot terrain editor/rendering system (MIT): <https://github.com/TokisanGames/Terrain3D>. Its demo's mountainous appearance is a useful visual target, but the main demo terrain is stored as authored binary region resources rather than as a reusable procedural mountain-generation function. This project does not claim to reproduce that authored heightmap or copy Terrain3D source. The island uses its own seeded height-field, ridge, valley and erosion pipeline; the existing coastline and ocean remain separate.

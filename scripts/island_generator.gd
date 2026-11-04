@@ -5,7 +5,7 @@ extends RefCounted
 
 const WORLD_SIZE := 10000.0
 const COAST_RESOLUTION := 1024
-const HEIGHT_RESOLUTION := 512
+const HEIGHT_RESOLUTION := 1024
 const TARGET_LAND_AREA_M2 := 4_000_000.0
 const MAX_MOUNTAIN_MASSES := 6
 
@@ -117,8 +117,8 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 	var accepted_centres: Array[Vector2] = []
 
 	for i in range(desired_count):
-		var long_radius := rng.randf_range(360.0, 620.0)
-		var short_radius := rng.randf_range(235.0, 410.0)
+		var long_radius := rng.randf_range(470.0, 820.0)
+		var short_radius := rng.randf_range(300.0, 560.0)
 		var centre := _find_mountain_centre(rng, coast_values, short_radius, accepted_centres)
 		if centre.x > WORLD_SIZE:
 			if result.is_empty():
@@ -130,10 +130,10 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 			"angle": rng.randf_range(0.0, TAU),
 			"long_radius": long_radius,
 			"short_radius": short_radius,
-			"peak_height": rng.randf_range(185.0, 285.0),
-			"frequency": rng.randf_range(0.0040, 0.0065),
+			"peak_height": rng.randf_range(215.0, 335.0),
+			"frequency": rng.randf_range(0.0032, 0.0052),
 			"phase": rng.randf_range(-1000.0, 1000.0),
-			"warp_strength": rng.randf_range(55.0, 115.0),
+			"warp_strength": rng.randf_range(70.0, 145.0),
 		})
 	return result
 
@@ -199,9 +199,11 @@ func _make_height_field(
 	var broad_noise := _make_noise(seed_value + 503, 0.00135, 5)
 	var hill_noise := _make_noise(seed_value + 607, 0.0052, 4)
 	var detail_noise := _make_noise(seed_value + 709, 0.023, 3)
-	var mountain_noise := _make_noise(seed_value + 811, 1.0, 4)
-	var mountain_warp_x := _make_noise(seed_value + 823, 0.0021, 3)
-	var mountain_warp_z := _make_noise(seed_value + 827, 0.0021, 3)
+	var mountain_noise := _make_noise(seed_value + 811, 1.0, 5)
+	var mountain_structure_noise := _make_noise(seed_value + 829, 0.0065, 4)
+	var mountain_fine_noise := _make_noise(seed_value + 839, 0.014, 3)
+	var mountain_warp_x := _make_noise(seed_value + 823, 0.0017, 4)
+	var mountain_warp_z := _make_noise(seed_value + 827, 0.0017, 4)
 
 	var heights := PackedFloat32Array()
 	heights.resize(HEIGHT_RESOLUTION * HEIGHT_RESOLUTION)
@@ -258,14 +260,23 @@ func _make_height_field(
 							local.y * frequency - phase * 0.37
 						)
 						var ridged := pow(1.0 - absf(ridge_noise), 1.8)
-						var broad_variation := mountain_noise.get_noise_2d(
+						var broad_variation := mountain_structure_noise.get_noise_2d(
 							local.x * 0.006 + phase * 0.13,
 							local.y * 0.006 - phase * 0.09
 						)
-						var core_height := float(mountain["peak_height"]) * pow(maxf(mountain_core, 0.0), 1.28)
-						core_height *= 0.78 + 0.18 * ridged + 0.04 * broad_variation
-						var foothill_height := 34.0 * pow(maxf(foothill_apron, 0.0), 1.65)
-						height += core_height + foothill_height
+						var secondary_ridge_noise := mountain_fine_noise.get_noise_2d(
+							local.x * frequency * 0.42 + phase * 0.71,
+							local.y * frequency * 0.42 - phase * 0.29
+						)
+						var secondary_ridged := pow(1.0 - absf(secondary_ridge_noise), 2.15)
+						var valley_mask := pow(maxf(1.0 - absf(broad_variation) * 2.7, 0.0), 2.0)
+						var core_envelope := pow(maxf(mountain_core, 0.0), 1.28)
+						var core_height := float(mountain["peak_height"]) * core_envelope
+						core_height *= 0.59 + 0.25 * ridged + 0.16 * secondary_ridged
+						core_height -= float(mountain["peak_height"]) * 0.105 * valley_mask * core_envelope
+						var foothill_height := 39.0 * pow(maxf(foothill_apron, 0.0), 1.65)
+						foothill_height *= 0.72 + 0.20 * ridged + 0.08 * broad_variation
+						height += maxf(core_height, 0.0) + foothill_height
 				height = maxf(height, 0.35)
 			else:
 				# A broad continental shelf transitions into a steep slope and rough abyss.

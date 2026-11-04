@@ -6,14 +6,14 @@ extends Node3D
 
 const IslandGeneratorScript = preload("res://scripts/island_generator.gd")
 
-@export_range(128, 768, 32) var terrain_subdivisions: int = 512
+@export_range(128, 1024, 32) var terrain_subdivisions: int = 768
 @export_range(128, 768, 32) var ocean_subdivisions: int = 320
 const TERRAIN_SIZE := 10000.0
 const OCEAN_SIZE := 12000.0
 @export var flight_speed: float = 210.0
 @export var initial_seed: int = 0
 
-const HEIGHT_RESOLUTION := 512.0
+const HEIGHT_RESOLUTION := 1024.0
 const AIR_FOG := Color(0.66, 0.77, 0.87)
 const UNDERWATER_FOG := Color(0.018, 0.12, 0.16)
 
