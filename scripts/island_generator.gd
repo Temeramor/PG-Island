@@ -117,10 +117,12 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 	var accepted_centres: Array[Vector2] = []
 
 	for i in range(desired_count):
-		var long_radius := rng.randf_range(245.0, 430.0)
-		var short_radius := rng.randf_range(115.0, 220.0)
-		var centre := _find_mountain_centre(rng, coast_values, long_radius, accepted_centres)
+		var long_radius := rng.randf_range(360.0, 620.0)
+		var short_radius := rng.randf_range(235.0, 410.0)
+		var centre := _find_mountain_centre(rng, coast_values, short_radius, accepted_centres)
 		if centre.x > WORLD_SIZE:
+			if result.is_empty():
+				continue
 			break
 		accepted_centres.append(centre)
 		result.append({
@@ -128,25 +130,22 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 			"angle": rng.randf_range(0.0, TAU),
 			"long_radius": long_radius,
 			"short_radius": short_radius,
-			"peak_height": rng.randf_range(245.0, 390.0),
-			"frequency": rng.randf_range(0.0045, 0.0080),
+			"peak_height": rng.randf_range(185.0, 285.0),
+			"frequency": rng.randf_range(0.0040, 0.0065),
 			"phase": rng.randf_range(-1000.0, 1000.0),
+			"warp_strength": rng.randf_range(55.0, 115.0),
 		})
 	return result
 
-
 func _roll_mountain_count(rng: RandomNumberGenerator) -> int:
-	# P(at least one) = 25%; each additional massif is progressively rarer.
-	# Conditional probabilities: 15%, 7.5%, 3.75%, 1.875%, 0.9375%; maximum 6.
-	if rng.randf() >= 0.25:
-		return 0
+	# One mountain is guaranteed. Each later mountain is 25% less likely
+	# than the previous one: 75%, 56.25%, 42.19%, and so on.
 	var count := 1
-	var next_probability := 0.15
+	var next_probability := 0.75
 	while count < MAX_MOUNTAIN_MASSES and rng.randf() < next_probability:
 		count += 1
-		next_probability *= 0.5
+		next_probability *= 0.75
 	return count
-
 
 func _find_mountain_centre(
 	rng: RandomNumberGenerator,
@@ -154,7 +153,7 @@ func _find_mountain_centre(
 	minimum_separation_radius: float,
 	accepted: Array[Vector2]
 ) -> Vector2:
-	for attempt in range(300):
+	for attempt in range(360):
 		var point := Vector2(
 			rng.randf_range(-WORLD_SIZE * 0.29, WORLD_SIZE * 0.29),
 			rng.randf_range(-WORLD_SIZE * 0.29, WORLD_SIZE * 0.29)
@@ -162,17 +161,35 @@ func _find_mountain_centre(
 		var ix := clampi(int(round((point.x / WORLD_SIZE + 0.5) * float(COAST_RESOLUTION - 1))), 0, COAST_RESOLUTION - 1)
 		var iy := clampi(int(round((point.y / WORLD_SIZE + 0.5) * float(COAST_RESOLUTION - 1))), 0, COAST_RESOLUTION - 1)
 		var signed_distance := coast_values[ix + iy * COAST_RESOLUTION]
-		if signed_distance < maxf(185.0, minimum_separation_radius * 0.54):
+		if signed_distance < maxf(185.0, minimum_separation_radius * 0.62):
 			continue
 		var separated := true
 		for other in accepted:
-			if point.distance_to(other) < minimum_separation_radius * 0.75 + 275.0:
+			if point.distance_to(other) < minimum_separation_radius * 1.15 + 360.0:
 				separated = false
 				break
 		if separated:
 			return point
-	return Vector2(WORLD_SIZE * 2.0, WORLD_SIZE * 2.0)
 
+	# Guarantee a valid first massif even on unusually narrow or irregular islands.
+	# A coarse interior scan finds the deepest point of the signed coastline field.
+	if accepted.is_empty():
+		var best_distance := -INF
+		var best_point := Vector2.ZERO
+		for gy in range(128):
+			var iy := int(round(float(gy) / 127.0 * float(COAST_RESOLUTION - 1)))
+			for gx in range(128):
+				var ix := int(round(float(gx) / 127.0 * float(COAST_RESOLUTION - 1)))
+				var distance := coast_values[ix + iy * COAST_RESOLUTION]
+				if distance > best_distance:
+					best_distance = distance
+					best_point = Vector2(
+						(float(ix) / float(COAST_RESOLUTION - 1) - 0.5) * WORLD_SIZE,
+						(float(iy) / float(COAST_RESOLUTION - 1) - 0.5) * WORLD_SIZE
+					)
+		if best_distance > 0.0:
+			return best_point
+	return Vector2(WORLD_SIZE * 2.0, WORLD_SIZE * 2.0)
 
 func _make_height_field(
 	seed_value: int,
@@ -183,6 +200,8 @@ func _make_height_field(
 	var hill_noise := _make_noise(seed_value + 607, 0.0052, 4)
 	var detail_noise := _make_noise(seed_value + 709, 0.023, 3)
 	var mountain_noise := _make_noise(seed_value + 811, 1.0, 4)
+	var mountain_warp_x := _make_noise(seed_value + 823, 0.0021, 3)
+	var mountain_warp_z := _make_noise(seed_value + 827, 0.0021, 3)
 
 	var heights := PackedFloat32Array()
 	heights.resize(HEIGHT_RESOLUTION * HEIGHT_RESOLUTION)
@@ -198,32 +217,55 @@ func _make_height_field(
 			var height := 0.0
 
 			if sdf >= 0.0:
+				# Most of the island is intentionally a broad, gently undulating plain.
 				var inland := _smoothstep(0.0, 720.0, sdf)
 				var shore_shelf := 2.8 + 12.0 * _smoothstep(0.0, 155.0, sdf)
-				var broad_uplift := 47.0 * pow(inland, 1.28)
-				var rolling_hills := broad_noise.get_noise_2d(world_x, world_z) * 22.0
-				rolling_hills += hill_noise.get_noise_2d(world_x, world_z) * 10.5
-				var micro_relief := detail_noise.get_noise_2d(world_x, world_z) * 2.4
+				var broad_uplift := 35.0 * pow(inland, 1.28)
+				var rolling_hills := broad_noise.get_noise_2d(world_x, world_z) * 12.5
+				rolling_hills += hill_noise.get_noise_2d(world_x, world_z) * 5.5
+				var micro_relief := detail_noise.get_noise_2d(world_x, world_z) * 1.5
 				height = shore_shelf + broad_uplift
 				height += rolling_hills * _smoothstep(35.0, 260.0, sdf)
 				height += micro_relief
 
+				# Warped elliptical envelopes create an irregular ridge system and
+				# a broad foothill apron instead of an isolated vertical pillar.
 				for mountain in mountains:
 					var mountain_centre: Vector2 = mountain["centre"]
 					var mountain_angle := float(mountain["angle"])
-					var local: Vector2 = (Vector2(world_x, world_z) - mountain_centre).rotated(-mountain_angle)
+					var local := (Vector2(world_x, world_z) - mountain_centre).rotated(-mountain_angle)
+					var warp_amount := float(mountain["warp_strength"])
+					local += Vector2(
+						mountain_warp_x.get_noise_2d(world_x, world_z),
+						mountain_warp_z.get_noise_2d(world_x, world_z)
+					) * warp_amount
 					var radius := Vector2(
 						local.x / float(mountain["long_radius"]),
 						local.y / float(mountain["short_radius"])
 					).length()
-					var massif := 1.0 - _smoothstep(0.62, 1.28, radius)
-					if massif > 0.0005:
+					var phase := float(mountain["phase"])
+					radius += mountain_noise.get_noise_2d(
+						local.x * 0.0024 + phase,
+						local.y * 0.0024 - phase * 0.37
+					) * 0.13
+
+					var mountain_core := 1.0 - _smoothstep(0.08, 1.22, radius)
+					var foothill_apron := 1.0 - _smoothstep(0.48, 2.05, radius)
+					if mountain_core > 0.0005 or foothill_apron > 0.0005:
 						var frequency := float(mountain["frequency"])
-						var phase := float(mountain["phase"])
-						var ridge_noise := mountain_noise.get_noise_2d(local.x * frequency + phase, local.y * frequency - phase * 0.37)
-						var ridge := pow(1.0 - absf(ridge_noise), 1.65)
-						var summit_shape := 0.48 + 0.52 * ridge
-						height += float(mountain["peak_height"]) * massif * summit_shape
+						var ridge_noise := mountain_noise.get_noise_2d(
+							local.x * frequency + phase,
+							local.y * frequency - phase * 0.37
+						)
+						var ridged := pow(1.0 - absf(ridge_noise), 1.8)
+						var broad_variation := mountain_noise.get_noise_2d(
+							local.x * 0.006 + phase * 0.13,
+							local.y * 0.006 - phase * 0.09
+						)
+						var core_height := float(mountain["peak_height"]) * pow(maxf(mountain_core, 0.0), 1.28)
+						core_height *= 0.78 + 0.18 * ridged + 0.04 * broad_variation
+						var foothill_height := 34.0 * pow(maxf(foothill_apron, 0.0), 1.65)
+						height += core_height + foothill_height
 				height = maxf(height, 0.35)
 			else:
 				# A broad continental shelf transitions into a steep slope and rough abyss.
@@ -236,7 +278,6 @@ func _make_height_field(
 
 			heights[x + y * HEIGHT_RESOLUTION] = height
 	return heights
-
 
 func _smoothstep(edge_a: float, edge_b: float, value: float) -> float:
 	var t := clampf((value - edge_a) / (edge_b - edge_a), 0.0, 1.0)

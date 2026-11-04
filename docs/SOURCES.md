@@ -23,7 +23,8 @@ The repository contains an original Godot implementation of publicly described t
 
 - **Rune Skovbo Johansen — Fast and Gorgeous Erosion Filter (30 March 2026).** Gradient-aligned procedural gullies and ridges that can be evaluated independently per point: <https://blog.runevision.com/2026/03/fast-and-gorgeous-erosion-filter.html>. The published filter is MPL-2.0. This project implements a lightweight original multi-scale approximation of the slope-aligned principle; it is not a port of the full advanced filter.
 - **Henry1 — Godot community prototype for the Fast and Gorgeous Erosion Filter.** Public discussion and GDScript prototype: <https://forum.godotengine.org/t/fast-and-gorgeous-erosion-filter/136436>. Used as a reference for slope-aligned stripe construction, not copied verbatim.
-- **Sebastian Lague — Hydraulic Erosion.** Particle-based hydraulic erosion simulation; MIT: <https://github.com/SebLague/Hydraulic-Erosion>
+- **Sebastian Lague — Hydraulic Erosion.** Particle-based hydraulic erosion simulation; MIT: <https://github.com/SebLague/Hydraulic-Erosion>. The Godot filter adapts the droplet direction, sediment-capacity, erosion-brush and deposition workflow; it does not copy Unity-specific source files.
+- **80 Level — Fast Terrain Erosion Filter That Emulates Erosion Without Simulation.** Overview of Rune Skovbo Johansen's 2026 filter and its released implementation: <https://80.lv/articles/fast-terrain-erosion-filter-that-emulates-erosion-without-simulation>.
 - **UnityTerrainErosionGPU.** Unity compute-shader implementation of hydraulic and thermal erosion inspired by shallow-water equations: <https://github.com/bshishov/UnityTerrainErosionGPU>
 - **Godot Compute Shader Heightmap Demo.** Official Godot Foundation example for compute-shader heightmap generation; inspect the release page for the current project version and license: <https://godotengine.org/asset-library/asset/2784> · <https://store.godotengine.org/asset/godot-foundation/compute-shader-heightmap-demo/>
 
@@ -38,7 +39,9 @@ The repository contains an original Godot implementation of publicly described t
 
 - Separate coastline SDF and elevation fields: Red Blob Games.
 - Domain warp, Simplex FBM and ridged details: Inigo Quilez, The Book of Shaders and Godot FastNoiseLite.
-- Multi-scale slope-aligned channels/ridges: Rune Skovbo Johansen and the Godot community prototype, implemented as a lighter original approximation.
+- Multi-scale slope-aligned channels/ridges: the filter adapts the published ideas of blended cosine/sine ridges, slope masking and multiple octaves from Rune Skovbo Johansen; it is not a verbatim port of the MPL-2.0 implementation.
+- Hydraulic erosion and sediment transport: a small deterministic droplet simulation adapts the algorithmic workflow described in Sebastian Lague's MIT project.
+- Thermal erosion: a conservative local talus-relaxation pass moves material between adjacent land cells.
 - GPU surface displacement, depth sampling and procedural layer shading: Godot spatial shader documentation.
 - Gerstner waves and screen-space water composition: GPU Gems and the Boujie Water Shader feature set.
 - Sebastian Lague, Heman and UnityTerrainErosionGPU are additional source-code references; none of their code is required to run this project.
