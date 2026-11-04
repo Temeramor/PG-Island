@@ -137,13 +137,13 @@ func _erode_brush(heights: PackedFloat32Array, position: Vector2, amount: float)
 	var total_weight := 0.0
 	for oy in range(-1, 2):
 		for ox in range(-1, 2):
-			var x := centre_x + ox
-			var y := centre_y + oy
-			if x < 1 or y < 1 or x >= RESOLUTION - 1 or y >= RESOLUTION - 1:
+			var sample_x := centre_x + ox
+			var sample_y := centre_y + oy
+			if sample_x < 1 or sample_y < 1 or sample_x >= RESOLUTION - 1 or sample_y >= RESOLUTION - 1:
 				continue
-			var weight := maxf(1.0 - Vector2(float(ox), float(oy)).length() / 1.65, 0.0)
-			if heights[x + y * RESOLUTION] > 0.5:
-				total_weight += weight
+			var sample_weight := maxf(1.0 - Vector2(float(ox), float(oy)).length() / 1.65, 0.0)
+			if heights[sample_x + sample_y * RESOLUTION] > 0.5:
+				total_weight += sample_weight
 
 	if total_weight <= 0.0001:
 		return 0.0
@@ -151,15 +151,15 @@ func _erode_brush(heights: PackedFloat32Array, position: Vector2, amount: float)
 	var removed := 0.0
 	for oy in range(-1, 2):
 		for ox in range(-1, 2):
-			var x := centre_x + ox
-			var y := centre_y + oy
-			if x < 1 or y < 1 or x >= RESOLUTION - 1 or y >= RESOLUTION - 1:
+			var target_x := centre_x + ox
+			var target_y := centre_y + oy
+			if target_x < 1 or target_y < 1 or target_x >= RESOLUTION - 1 or target_y >= RESOLUTION - 1:
 				continue
-			var index := x + y * RESOLUTION
-			var weight := maxf(1.0 - Vector2(float(ox), float(oy)).length() / 1.65, 0.0)
-			var available := maxf(heights[index] - 0.5, 0.0)
-			var take := minf(available, amount * weight / total_weight)
-			heights[index] -= take
+			var target_index := target_x + target_y * RESOLUTION
+			var target_weight := maxf(1.0 - Vector2(float(ox), float(oy)).length() / 1.65, 0.0)
+			var available := maxf(heights[target_index] - 0.5, 0.0)
+			var take := minf(available, amount * target_weight / total_weight)
+			heights[target_index] -= take
 			removed += take
 	return removed
 
@@ -270,25 +270,25 @@ func _apply_thermal_relaxation(
 				var right_coast_x := int(round(float(x + 1) / float(RESOLUTION - 1) * float(COAST_RESOLUTION - 1)))
 				var down_coast_y := int(round(float(y + 1) / float(RESOLUTION - 1) * float(COAST_RESOLUTION - 1)))
 				if coast_sdf[right_coast_x + coast_y * COAST_RESOLUTION] > 0.0:
-					var difference := current[index] - current[right]
-					if absf(difference) > talus_height:
-						var transfer := minf((absf(difference) - talus_height) * 0.14, 1.0)
-						if difference > 0.0:
-							delta[index] -= transfer
-							delta[right] += transfer
+					var right_difference := current[index] - current[right]
+					if absf(right_difference) > talus_height:
+						var right_transfer := minf((absf(right_difference) - talus_height) * 0.14, 1.0)
+						if right_difference > 0.0:
+							delta[index] -= right_transfer
+							delta[right] += right_transfer
 						else:
-							delta[index] += transfer
-							delta[right] -= transfer
+							delta[index] += right_transfer
+							delta[right] -= right_transfer
 				if coast_sdf[coast_x + down_coast_y * COAST_RESOLUTION] > 0.0:
-					var difference := current[index] - current[down]
-					if absf(difference) > talus_height:
-						var transfer := minf((absf(difference) - talus_height) * 0.14, 1.0)
-						if difference > 0.0:
-							delta[index] -= transfer
-							delta[down] += transfer
+					var down_difference := current[index] - current[down]
+					if absf(down_difference) > talus_height:
+						var down_transfer := minf((absf(down_difference) - talus_height) * 0.14, 1.0)
+						if down_difference > 0.0:
+							delta[index] -= down_transfer
+							delta[down] += down_transfer
 						else:
-							delta[index] += transfer
-							delta[down] -= transfer
+							delta[index] += down_transfer
+							delta[down] -= down_transfer
 
 		for index in range(current.size()):
 			if current[index] > 0.0:
