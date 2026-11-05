@@ -136,7 +136,6 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 			"angle": rng.randf_range(0.0, TAU),
 			"long_radius": long_radius,
 			"short_radius": short_radius,
-			"width_scale": width_scale,
 			"peak_height": peak_height,
 			"frequency": rng.randf_range(0.0032, 0.0052),
 			"phase": rng.randf_range(-1000.0, 1000.0),
@@ -275,7 +274,10 @@ func _make_height_field(
 					) * 0.13
 
 					var mountain_core := 1.0 - _smoothstep(0.10, 1.14, radius)
-					var foothill_apron := 1.0 - _smoothstep(0.62, 2.38, radius)
+					# Keep the low outer foothill apron at its original footprint; only
+					# the elevated mountain core grows with peak height, preserving plains.
+					var foothill_radius := radius * float(mountain["width_scale"])
+					var foothill_apron := 1.0 - _smoothstep(0.62, 2.38, foothill_radius)
 					if mountain_core > 0.0005 or foothill_apron > 0.0005:
 						var frequency := float(mountain["frequency"])
 						var ridge_noise := mountain_noise.get_noise_2d(
