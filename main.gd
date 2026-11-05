@@ -159,7 +159,7 @@ func _create_hud() -> void:
 	seed_input.custom_minimum_size = Vector2(180.0, 34.0)
 	seed_input.size = Vector2(180.0, 34.0)
 	seed_input.placeholder_text = "Enter island seed"
-	seed_input.max_length = 12
+	seed_input.max_length = 20
 	seed_input.text_submitted.connect(_on_seed_submitted)
 	layer.add_child(seed_input)
 
