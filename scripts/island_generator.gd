@@ -117,8 +117,14 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 	var accepted_centres: Array[Vector2] = []
 
 	for i in range(desired_count):
-		var long_radius := rng.randf_range(330.0, 610.0)
-		var short_radius := rng.randf_range(215.0, 395.0)
+		var peak_height := 200.0 + 400.0 * pow(rng.randf(), 2.15)
+		# Higher massifs occupy more horizontal space as well as gaining elevation.
+		# The restrained curve keeps low mountains compact while giving tall ranges
+		# broader shoulders and a more believable area-to-height relationship.
+		var height_ratio := clampf((peak_height - 200.0) / 400.0, 0.0, 1.0)
+		var width_scale := 1.05 + 0.42 * pow(height_ratio, 0.82)
+		var long_radius := rng.randf_range(330.0, 610.0) * width_scale
+		var short_radius := rng.randf_range(215.0, 395.0) * width_scale
 		var centre := _find_mountain_centre(rng, coast_values, short_radius, accepted_centres)
 		if centre.x > WORLD_SIZE:
 			if result.is_empty():
@@ -130,7 +136,8 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 			"angle": rng.randf_range(0.0, TAU),
 			"long_radius": long_radius,
 			"short_radius": short_radius,
-			"peak_height": 200.0 + 400.0 * pow(rng.randf(), 2.15),
+			"width_scale": width_scale,
+			"peak_height": peak_height,
 			"frequency": rng.randf_range(0.0032, 0.0052),
 			"phase": rng.randf_range(-1000.0, 1000.0),
 			"warp_strength": rng.randf_range(70.0, 145.0),
@@ -286,10 +293,13 @@ func _make_height_field(
 						)
 						var secondary_ridged := pow(1.0 - absf(secondary_ridge_noise), 2.15)
 						var valley_mask := pow(maxf(1.0 - absf(broad_variation) * 2.7, 0.0), 2.0)
-						var core_envelope := pow(maxf(mountain_core, 0.0), 1.42)
-						# A narrow summit term breaks the broad central dome into a sharper,
-						# irregular peak while retaining the surrounding ridge system.
-						var summit_spire := pow(maxf(1.0 - radius / 0.36, 0.0), 2.15)
+						# A gentler envelope carries more of the mountain's mass into its
+						# shoulders. Width scaling above is tied to peak height, not applied
+						# globally, so plains and foothill coverage remain largely unchanged.
+						var core_envelope := pow(maxf(mountain_core, 0.0), 1.20)
+						# Keep a distinct pointed summit, but soften the needle-like profile:
+						# the peak widens into the upper mountain instead of rising as a spire.
+						var summit_spire := pow(maxf(1.0 - radius / 0.44, 0.0), 2.55)
 						var mountain_coast_fade := _smoothstep(-80.0, 320.0, sdf)
 						var foothill_coast_fade := _smoothstep(-180.0, 430.0, sdf)
 						var peak_height := float(mountain["peak_height"])
