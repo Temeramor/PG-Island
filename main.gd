@@ -23,6 +23,7 @@ var water_material: ShaderMaterial
 var camera: Camera3D
 var environment: Environment
 var hud: Label
+var seed_input: LineEdit
 var active_seed: int = 0
 var yaw: float = 0.0
 var pitch: float = -0.30
@@ -151,16 +152,53 @@ func _create_hud() -> void:
 	hud.add_theme_constant_override("outline_size", 5)
 	hud.add_theme_font_size_override("font_size", 16)
 	layer.add_child(hud)
+
+	# A compact seed control makes any generated island reproducible on demand.
+	seed_input = LineEdit.new()
+	seed_input.position = Vector2(18.0, 68.0)
+	seed_input.custom_minimum_size = Vector2(180.0, 34.0)
+	seed_input.size = Vector2(180.0, 34.0)
+	seed_input.placeholder_text = "Enter island seed"
+	seed_input.max_length = 12
+	seed_input.text_submitted.connect(_on_seed_submitted)
+	layer.add_child(seed_input)
+
+	var seed_button := Button.new()
+	seed_button.position = Vector2(208.0, 68.0)
+	seed_button.custom_minimum_size = Vector2(112.0, 34.0)
+	seed_button.size = Vector2(112.0, 34.0)
+	seed_button.text = "Generate"
+	seed_button.pressed.connect(_on_generate_seed_pressed)
+	layer.add_child(seed_button)
+
 	_update_hud(0.0, 0)
 
 
 func _generate_island(seed_value: int) -> void:
 	active_seed = seed_value
+	if is_instance_valid(seed_input):
+		seed_input.text = str(active_seed)
 	hud.text = "GENERATING ISLAND...  seed: %d" % active_seed
 	var generated: Dictionary = generator.generate(active_seed)
 	terrain_material.set_shader_parameter("coast_field", generated["coast_texture"])
 	terrain_material.set_shader_parameter("height_field", generated["height_texture"])
 	_update_hud(float(generated["land_area_m2"]), int(generated["mountain_count"]))
+
+
+func _on_seed_submitted(value: String) -> void:
+	_generate_from_seed(value)
+
+
+func _on_generate_seed_pressed() -> void:
+	_generate_from_seed(seed_input.text)
+
+
+func _generate_from_seed(seed_text: String) -> void:
+	var normalized := seed_text.strip_edges()
+	if not normalized.is_valid_int():
+		hud.text = "Seed must be a whole number. Enter an integer and try again."
+		return
+	_generate_island(int(normalized))
 
 
 func _update_hud(area_m2: float, mountain_count: int) -> void:
