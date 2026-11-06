@@ -125,12 +125,17 @@ func _make_mountains(rng: RandomNumberGenerator, coast_values: PackedFloat32Arra
 				continue
 			break
 		accepted_centres.append(centre)
+		var peak_height := 200.0 + 400.0 * pow(rng.randf(), 2.15)
+		# Taller massifs grow wider as well as higher, keeping their slopes substantial.
+		# The scale is deliberately restrained so plains remain the dominant landform.
+		var height_ratio := clampf((peak_height - 200.0) / 400.0, 0.0, 1.0)
+		var footprint_scale := 1.0 + 0.28 * height_ratio
 		result.append({
 			"centre": centre,
 			"angle": rng.randf_range(0.0, TAU),
-			"long_radius": long_radius,
-			"short_radius": short_radius,
-			"peak_height": 200.0 + 400.0 * pow(rng.randf(), 2.15),
+			"long_radius": long_radius * footprint_scale,
+			"short_radius": short_radius * footprint_scale,
+			"peak_height": peak_height,
 			"frequency": rng.randf_range(0.0032, 0.0052),
 			"phase": rng.randf_range(-1000.0, 1000.0),
 			"warp_strength": rng.randf_range(70.0, 145.0),
@@ -286,10 +291,10 @@ func _make_height_field(
 						)
 						var secondary_ridged := pow(1.0 - absf(secondary_ridge_noise), 2.15)
 						var valley_mask := pow(maxf(1.0 - absf(broad_variation) * 2.7, 0.0), 2.0)
-						var core_envelope := pow(maxf(mountain_core, 0.0), 1.42)
+						var core_envelope := pow(maxf(mountain_core, 0.0), 1.22)
 						# A narrow summit term breaks the broad central dome into a sharper,
 						# irregular peak while retaining the surrounding ridge system.
-						var summit_spire := pow(maxf(1.0 - radius / 0.36, 0.0), 2.15)
+						var summit_spire := pow(maxf(1.0 - radius / 0.48, 0.0), 1.85)
 						var mountain_coast_fade := _smoothstep(-80.0, 320.0, sdf)
 						var foothill_coast_fade := _smoothstep(-180.0, 430.0, sdf)
 						var peak_height := float(mountain["peak_height"])
