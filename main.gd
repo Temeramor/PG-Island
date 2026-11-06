@@ -23,6 +23,7 @@ var water_material: ShaderMaterial
 var camera: Camera3D
 var environment: Environment
 var hud: Label
+var seed_input: LineEdit
 var active_seed: int = 0
 var yaw: float = 0.0
 var pitch: float = -0.30
@@ -151,16 +152,64 @@ func _create_hud() -> void:
 	hud.add_theme_constant_override("outline_size", 5)
 	hud.add_theme_font_size_override("font_size", 16)
 	layer.add_child(hud)
+
+	var seed_controls := HBoxContainer.new()
+	seed_controls.position = Vector2(18.0, 58.0)
+	seed_controls.add_theme_constant_override("separation", 8)
+	layer.add_child(seed_controls)
+
+	var seed_label := Label.new()
+	seed_label.text = "SEED"
+	seed_label.add_theme_color_override("font_color", Color(0.97, 0.99, 1.0))
+	seed_controls.add_child(seed_label)
+
+	seed_input = LineEdit.new()
+	seed_input.custom_minimum_size = Vector2(190.0, 34.0)
+	seed_input.placeholder_text = "Enter seed (1–2000000000)"
+	seed_input.max_length = 10
+	seed_input.input_filter = LineEdit.INPUT_INT
+	seed_input.add_theme_color_override("font_color", Color(0.97, 0.99, 1.0))
+	seed_input.add_theme_color_override("font_placeholder_color", Color(0.68, 0.74, 0.80))
+	seed_controls.add_child(seed_input)
+	seed_input.text_submitted.connect(_on_seed_text_submitted)
+
+	var generate_button := Button.new()
+	generate_button.text = "Generate"
+	generate_button.pressed.connect(_on_seed_button_pressed)
+	seed_controls.add_child(generate_button)
+
 	_update_hud(0.0, 0)
 
 
 func _generate_island(seed_value: int) -> void:
-	active_seed = seed_value
+	active_seed = clampi(seed_value, 1, 2_000_000_000)
+	if is_instance_valid(seed_input):
+		seed_input.text = str(active_seed)
 	hud.text = "GENERATING ISLAND...  seed: %d" % active_seed
 	var generated: Dictionary = generator.generate(active_seed)
 	terrain_material.set_shader_parameter("coast_field", generated["coast_texture"])
 	terrain_material.set_shader_parameter("height_field", generated["height_texture"])
 	_update_hud(float(generated["land_area_m2"]), int(generated["mountain_count"]))
+
+
+func _on_seed_text_submitted(value: String) -> void:
+	_generate_from_seed_text(value)
+
+
+func _on_seed_button_pressed() -> void:
+	_generate_from_seed_text(seed_input.text)
+
+
+func _generate_from_seed_text(value: String) -> void:
+	var trimmed := value.strip_edges()
+	if not trimmed.is_valid_int():
+		seed_input.text = str(active_seed)
+		return
+	var requested_seed := int(trimmed)
+	if requested_seed < 1 or requested_seed > 2_000_000_000:
+		seed_input.text = str(active_seed)
+		return
+	_generate_island(requested_seed)
 
 
 func _update_hud(area_m2: float, mountain_count: int) -> void:
