@@ -167,7 +167,6 @@ func _create_hud() -> void:
 	seed_input.custom_minimum_size = Vector2(190.0, 34.0)
 	seed_input.placeholder_text = "Enter seed (1–2000000000)"
 	seed_input.max_length = 10
-	seed_input.input_filter = LineEdit.INPUT_INT
 	seed_input.add_theme_color_override("font_color", Color(0.97, 0.99, 1.0))
 	seed_input.add_theme_color_override("font_placeholder_color", Color(0.68, 0.74, 0.80))
 	seed_controls.add_child(seed_input)
